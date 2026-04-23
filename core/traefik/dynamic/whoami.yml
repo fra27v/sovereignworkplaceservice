@@ -1,0 +1,23 @@
+http:
+  routers:
+    whoami:
+      rule: "Host(`whoami.internal`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: whoami-svc
+      middlewares:
+        - secure-headers
+
+  services:
+    whoami-svc:
+      loadBalancer:
+        servers:
+          - url: "http://whoami:80"
+
+  middlewares:
+    secure-headers:
+      headers:
+        browserXssFilter: true
+        contentTypeNosniff: true
+        frameDeny: true

@@ -1,0 +1,22 @@
+http:
+  routers:
+    auth:
+      rule: "Host(`auth.internal`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: auth-svc
+
+  services:
+    auth-svc:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: internal-ca
+        servers:
+          - url: "https://keycloak:8443"
+
+  serversTransports:
+    internal-ca:
+      serverName: "auth.internal"
+      rootCAs:
+        - "/pki/ca/internal-ca.crt"

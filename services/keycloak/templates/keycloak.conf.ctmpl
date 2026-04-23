@@ -1,0 +1,14 @@
+{{- with secret "kv/data/keycloak" -}}
+db=postgres
+db-url-host=keycloak-db
+db-url-database=keycloak
+db-username={{ .Data.data.db_username }}
+db-password={{ .Data.data.db_password }}
+
+hostname=auth.internal
+
+https-certificate-file=/secrets/tls.crt
+https-certificate-key-file=/secrets/tls.key
+https-port=8443
+http-enabled=false
+{{- end }}

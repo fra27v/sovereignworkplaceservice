@@ -1,0 +1,55 @@
+services:
+  keycloak-db:
+    image: postgres:16
+    container_name: keycloak-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER_FILE: /secrets/db_username
+      POSTGRES_PASSWORD_FILE: /secrets/db_password
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+      - ./secrets:/secrets:ro
+    command: >
+      sh -c '
+        until [ -s /secrets/db_username ] && [ -s /secrets/db_password ];
+        do
+          echo "waiting for Vault Agent secrets...";
+          sleep 2;
+        done;
+        exec docker-entrypoint.sh postgres
+      '
+    networks:
+      - proxy
+
+  vault-agent:
+    image: hashicorp/vault:1.19
+    container_name: keycloak-agent
+    restart: unless-stopped
+    command: agent -config=/config/agent.hcl
+    volumes:
+      - ./config:/config
+      - ./templates:/templates
+      - ./secrets:/secrets
+    networks:
+      - proxy
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    restart: unless-stopped
+    command: ["--config-file=/secrets/keycloak.conf", "start"]
+    volumes:
+      - ./secrets:/secrets:ro
+    depends_on:
+      - keycloak-db
+      - vault-agent
+    networks:
+      - proxy
+
+volumes:
+  keycloak_db_data:
+
+networks:
+  proxy:
+    external: true
