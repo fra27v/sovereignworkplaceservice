@@ -7,17 +7,10 @@ http:
       tls: {}
       service: whoami-svc
       middlewares:
-        - secure-headers
+        - secure-headers@file
 
   services:
     whoami-svc:
       loadBalancer:
         servers:
           - url: "http://whoami:80"
-
-  middlewares:
-    secure-headers:
-      headers:
-        browserXssFilter: true
-        contentTypeNosniff: true
-        frameDeny: true
