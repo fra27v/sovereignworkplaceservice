@@ -15,6 +15,9 @@ echo "[nextcloud-entrypoint] enabling apache ssl modules..."
 a2enmod ssl headers rewrite remoteip >/dev/null 2>&1 || true
 a2ensite default-ssl >/dev/null 2>&1 || true
 
+echo "[nextcloud-entrypoint] updating CA trust..."
+update-ca-certificates >/dev/null 2>&1 || true
+
 if [ -f /bootstrap/zz-custom.config.php ]; then
   echo "[nextcloud-entrypoint] installing custom nextcloud config..."
   cp /bootstrap/zz-custom.config.php /var/www/html/config/zz-custom.config.php

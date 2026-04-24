@@ -86,6 +86,7 @@ services:
       - ./config/apache/default-ssl.conf:/etc/apache2/sites-available/default-ssl.conf:ro
       - ./config/nextcloud/zz-custom.config.php:/var/www/html/config/zz-custom.config.php:ro
       - ../../pki/issued/files.internal:/tls:ro
+      - ../../pki/ca/internal-ca.crt:/usr/local/share/ca-certificates/internal-ca.crt:ro
     entrypoint: ["/bin/sh", "/usr/local/bin/nextcloud-entrypoint.sh"]
     networks:
       - proxy

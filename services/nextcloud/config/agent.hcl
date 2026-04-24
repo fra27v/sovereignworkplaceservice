@@ -50,3 +50,13 @@ template {
   source      = "/templates/admin_password.tpl"
   destination = "/secrets/admin_password"
 }
+
+template {
+  source      = "/templates/oidc_client_id.tpl"
+  destination = "/secrets/oidc_client_id"
+}
+
+template {
+  source      = "/templates/oidc_client_secret.tpl"
+  destination = "/secrets/oidc_client_secret"
+}
