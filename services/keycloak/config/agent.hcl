@@ -10,6 +10,7 @@ auto_auth {
     config = {
       role_id_file_path   = "/config/role_id"
       secret_id_file_path = "/config/secret_id"
+      remove_secret_id_file_after_reading = false
     }
   }
 

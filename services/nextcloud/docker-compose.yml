@@ -1,0 +1,112 @@
+services:
+  vault-agent:
+    image: hashicorp/vault:1.19
+    container_name: nextcloud-agent
+    restart: unless-stopped
+    command: agent -config=/config/agent.hcl
+    volumes:
+      - ./config:/config
+      - ./templates:/templates
+      - ./secrets:/secrets
+    networks:
+      - proxy
+
+  nextcloud-db:
+    image: postgres:16
+    container_name: nextcloud-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB_FILE: /secrets/db_name
+      POSTGRES_USER_FILE: /secrets/db_username
+      POSTGRES_PASSWORD_FILE: /secrets/db_password
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./secrets:/secrets:ro
+    command: >
+      sh -c '
+        until [ -s /secrets/db_name ] && [ -s /secrets/db_username ] && [ -s /secrets/db_password ];
+        do
+          echo "waiting for Vault Agent secrets...";
+          sleep 2;
+        done;
+        exec docker-entrypoint.sh postgres
+      '
+    networks:
+      - proxy
+
+  nextcloud-redis:
+    image: redis:7-alpine
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    volumes:
+      - ./data/redis:/data
+      - ./secrets:/secrets:ro
+    command: >
+      sh -c '
+        until [ -s /secrets/redis_password ];
+        do
+          echo "waiting for Vault Agent secrets...";
+          sleep 2;
+        done;
+        exec redis-server --appendonly yes --requirepass "$$(cat /secrets/redis_password)"
+      '
+    networks:
+      - proxy
+
+  nextcloud:
+    image: nextcloud:31-apache
+    container_name: nextcloud
+    restart: unless-stopped
+    depends_on:
+      - vault-agent
+      - nextcloud-db
+      - nextcloud-redis
+    environment:
+      POSTGRES_HOST: nextcloud-db
+      POSTGRES_DB_FILE: /secrets/db_name
+      POSTGRES_USER_FILE: /secrets/db_username
+      POSTGRES_PASSWORD_FILE: /secrets/db_password
+
+      NEXTCLOUD_ADMIN_USER_FILE: /secrets/admin_username
+      NEXTCLOUD_ADMIN_PASSWORD_FILE: /secrets/admin_password
+
+      REDIS_HOST: nextcloud-redis
+      REDIS_HOST_PASSWORD_FILE: /secrets/redis_password
+
+      OVERWRITEHOST: files.internal
+      OVERWRITEPROTOCOL: https
+      TRUSTED_PROXIES: 172.18.0.0/16
+
+      PHP_MEMORY_LIMIT: 1024M
+      PHP_UPLOAD_LIMIT: 10G
+    volumes:
+      - nextcloud_html:/var/www/html
+      - ./scripts/nextcloud-entrypoint.sh:/usr/local/bin/nextcloud-entrypoint.sh:ro
+      - ./secrets:/secrets:ro
+      - ./config/apache/default-ssl.conf:/etc/apache2/sites-available/default-ssl.conf:ro
+      - ./config/nextcloud/zz-custom.config.php:/var/www/html/config/zz-custom.config.php:ro
+      - ../../pki/issued/files.internal:/tls:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/nextcloud-entrypoint.sh"]
+    networks:
+      - proxy
+
+  nextcloud-cron:
+    image: nextcloud:31-apache
+    container_name: nextcloud-cron
+    restart: unless-stopped
+    depends_on:
+      - nextcloud
+    entrypoint: /cron.sh
+    volumes:
+      - nextcloud_html:/var/www/html
+      - ./secrets:/secrets:ro
+      - ./config/nextcloud/zz-custom.config.php:/var/www/html/config/zz-custom.config.php:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  nextcloud_html:

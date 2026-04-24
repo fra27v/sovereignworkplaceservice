@@ -1,0 +1,22 @@
+http:
+  routers:
+    files:
+      rule: "Host(`files.internal`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: files-svc
+
+  services:
+    files-svc:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: files-internal-ca
+        servers:
+          - url: "https://nextcloud:443"
+
+  serversTransports:
+    files-internal-ca:
+      serverName: "files.internal"
+      rootCAs:
+        - "/pki/ca/internal-ca.crt"
