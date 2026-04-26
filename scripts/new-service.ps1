@@ -9,7 +9,7 @@ param(
     [string]$VaultContainer = "vault",
     [string]$VaultAddr = "http://127.0.0.1:8200",
     [string]$RoleName = "internal-dot",
-    [string]$Ttl = "672h",
+    [string]$Ttl = "2400h",
 
     [string]$RouterName,
     [string]$ServiceName,

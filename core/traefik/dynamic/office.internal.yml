@@ -1,0 +1,22 @@
+http:
+  routers:
+    office:
+      rule: "Host(`office.internal`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: office-svc
+
+  services:
+    office-svc:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: office-internal-ca
+        servers:
+          - url: "https://collabora:9980"
+
+  serversTransports:
+    office-internal-ca:
+      serverName: "office.internal"
+      rootCAs:
+        - "/pki/ca/internal-ca.crt"

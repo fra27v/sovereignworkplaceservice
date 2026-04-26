@@ -75,7 +75,7 @@ services:
 
       OVERWRITEHOST: files.internal
       OVERWRITEPROTOCOL: https
-      TRUSTED_PROXIES: 172.18.0.0/16
+      TRUSTED_PROXIES: 172.16.0.0/12
 
       PHP_MEMORY_LIMIT: 1024M
       PHP_UPLOAD_LIMIT: 10G

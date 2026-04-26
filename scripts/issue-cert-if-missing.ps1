@@ -4,7 +4,7 @@ param(
     [string]$VaultAddr = "http://127.0.0.1:8200",
     [string]$RoleName = "internal-dot",
     [string]$PkiIssuedRoot = "D:\lab-sovrano\pki\issued",
-    [string]$Ttl = "672h",
+    [string]$Ttl = "2400h",
     [switch]$Force,
     [switch]$Help
 )

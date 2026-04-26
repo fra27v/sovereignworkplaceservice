@@ -1,5 +1,14 @@
 <?php
 $CONFIG = [
+  // UX pulita
+  'defaultapp' => 'files',
+  'knowledgebaseenabled' => false,
+  'simpleSignUpLink.shown' => false,
+
+  'skeletondirectory' => '/var/www/html/skeleton',
+
+  'default_quota' => '5 GB',
+
   'trusted_domains' =>
   [
     'files.internal',

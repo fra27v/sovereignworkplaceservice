@@ -1,4 +1,4 @@
-﻿tls:
+tls:
   certificates:
     - certFile: /pki/issued/auth.internal/tls.crt
       keyFile: /pki/issued/auth.internal/tls.key
@@ -6,4 +6,5 @@
       keyFile: /pki/issued/whoami.internal/tls.key
     - certFile: /pki/issued/files.internal/tls.crt
       keyFile: /pki/issued/files.internal/tls.key
-
+    - certFile: /pki/issued/office.internal/tls.crt
+      keyFile: /pki/issued/office.internal/tls.key

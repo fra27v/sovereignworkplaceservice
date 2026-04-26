@@ -1,0 +1,43 @@
+services:
+  vault-agent:
+    image: hashicorp/vault:1.19
+    container_name: collabora-agent
+    restart: unless-stopped
+    command: agent -config=/config/agent.hcl
+    volumes:
+      - ./config:/config
+      - ./templates:/templates
+      - ./secrets:/secrets
+    networks:
+      - proxy
+
+  collabora:
+    image: collabora/code:25.04.9.4.1
+    container_name: collabora
+    restart: unless-stopped
+    depends_on:
+      - vault-agent
+    environment:
+      domain: files\.internal
+      aliasgroup1: https://files.internal:443
+      extra_params: >-
+        --o:ssl.enable=true
+        --o:ssl.termination=false
+        --o:ssl.cert_file_path=/etc/coolwsd/cert.pem
+        --o:ssl.key_file_path=/etc/coolwsd/key.pem
+        --o:ssl.ca_file_path=/etc/coolwsd/ca-chain.cert.pem
+        --o:net.post_allow.host=files.internal
+        --o:net.post_allow.host=nextcloud
+    volumes:
+      - ./secrets:/secrets:ro
+      - ./secrets/tls.crt:/etc/coolwsd/cert.pem:ro
+      - ./secrets/tls.key:/etc/coolwsd/key.pem:ro
+      - ./secrets/ca.crt:/etc/coolwsd/ca-chain.cert.pem:ro
+      - ./scripts/collabora-entrypoint.sh:/usr/local/bin/collabora-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/collabora-entrypoint.sh"]
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
