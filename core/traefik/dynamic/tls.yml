@@ -10,3 +10,5 @@ tls:
       keyFile: /pki/issued/office.internal/tls.key
     - certFile: /pki/issued/passwords.internal/tls.crt
       keyFile: /pki/issued/passwords.internal/tls.key
+    - certFile: /pki/issued/hr.internal/tls.crt
+      keyFile: /pki/issued/hr.internal/tls.key

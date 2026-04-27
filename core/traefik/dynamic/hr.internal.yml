@@ -1,0 +1,22 @@
+http:
+  routers:
+    hr:
+      rule: "Host(`hr.internal`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: hr-svc
+
+  services:
+    hr-svc:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: hr-internal-ca
+        servers:
+          - url: "https://orangehrm:443"
+
+  serversTransports:
+    hr-internal-ca:
+      serverName: "hr.internal"
+      rootCAs:
+        - "/pki/ca/internal-ca.crt"

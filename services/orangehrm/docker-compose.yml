@@ -1,0 +1,66 @@
+services:
+  vault-agent:
+    image: hashicorp/vault:1.19
+    container_name: orangehrm-agent
+    restart: unless-stopped
+    command: agent -config=/config/agent.hcl
+    volumes:
+      - ./config:/config
+      - ./templates:/templates
+      - ./secrets:/secrets
+    networks:
+      - proxy
+
+  orangehrm-db:
+    image: mariadb:11.4
+    container_name: orangehrm-db
+    restart: unless-stopped
+    depends_on:
+      - vault-agent
+    environment:
+      MARIADB_ROOT_PASSWORD_FILE: /secrets/db_root_password
+      MARIADB_ROOT_HOST: "172.19.%"
+    volumes:
+      - orangehrm_mariadb:/var/lib/mysql
+      - ./secrets:/secrets:ro
+    command: >
+      sh -c '
+        until [ -s /secrets/db_root_password ];
+        do
+          echo "waiting for Vault Agent secrets...";
+          sleep 2;
+        done;
+        exec docker-entrypoint.sh mariadbd
+      '
+    networks:
+      - proxy
+
+  orangehrm:
+    image: orangehrm/orangehrm:5.8.1
+    container_name: orangehrm
+    restart: unless-stopped
+    depends_on:
+      - orangehrm-db
+    volumes:
+      - orangehrm_confs:/var/www/html/lib/confs
+      - ./config/apache/default-ssl.conf:/etc/apache2/sites-available/default-ssl.conf:ro
+      - ../../pki/issued/hr.internal:/tls:ro
+      - ../../pki/ca/internal-ca.crt:/usr/local/share/ca-certificates/internal-ca.crt:ro
+    command: >
+      sh -c '
+        update-ca-certificates;
+        a2enmod ssl;
+        a2ensite default-ssl;
+        apache2ctl configtest;
+        exec apache2-foreground
+      '
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  orangehrm_mariadb:
+  orangehrm_confs:
