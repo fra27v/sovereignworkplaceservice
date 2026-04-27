@@ -1,0 +1,51 @@
+services:
+  vault-agent:
+    image: hashicorp/vault:1.19
+    container_name: vaultwarden-agent
+    restart: unless-stopped
+    command: agent -config=/config/agent.hcl
+    volumes:
+      - ./config:/config
+      - ./templates:/templates
+      - ./secrets:/secrets
+    networks:
+      - proxy
+
+  vaultwarden:
+    image: vaultwarden/server:1.35.8
+    container_name: vaultwarden
+    restart: unless-stopped
+    depends_on:
+      - vault-agent
+    volumes:
+      - ./data:/data
+      - ./secrets:/secrets:ro
+      - ../../pki/ca/internal-ca.crt:/usr/local/share/ca-certificates/internal-ca.crt:ro
+    command: >
+      sh -c '
+        until [ -s /secrets/vaultwarden.env ];
+        do
+          echo "waiting for Vault Agent secrets...";
+          sleep 2;
+        done;
+
+        update-ca-certificates || true;
+
+        set -a;
+        . /secrets/vaultwarden.env;
+        set +a;
+
+        exec /start.sh
+      '
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.passwords.rule=Host(`passwords.internal`)"
+      - "traefik.http.routers.passwords.entrypoints=websecure"
+      - "traefik.http.routers.passwords.tls=true"
+      - "traefik.http.services.passwords.loadbalancer.server.port=80"
+
+networks:
+  proxy:
+    external: true
