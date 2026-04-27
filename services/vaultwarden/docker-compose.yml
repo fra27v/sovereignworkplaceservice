@@ -20,6 +20,7 @@ services:
     volumes:
       - ./data:/data
       - ./secrets:/secrets:ro
+      - ../../pki/issued/passwords.internal:/tls:ro
       - ../../pki/ca/internal-ca.crt:/usr/local/share/ca-certificates/internal-ca.crt:ro
     command: >
       sh -c '
@@ -34,7 +35,9 @@ services:
         set -a;
         . /secrets/vaultwarden.env;
         set +a;
-
+        export ROCKET_ADDRESS=0.0.0.0
+        export ROCKET_PORT=443
+        export ROCKET_TLS="{certs=\"/tls/tls.crt\",key=\"/tls/tls.key\"}"
         exec /start.sh
       '
     networks:
@@ -44,8 +47,7 @@ services:
       - "traefik.http.routers.passwords.rule=Host(`passwords.internal`)"
       - "traefik.http.routers.passwords.entrypoints=websecure"
       - "traefik.http.routers.passwords.tls=true"
-      - "traefik.http.services.passwords.loadbalancer.server.port=80"
-
+      - "traefik.http.services.passwords.loadbalancer.server.port=443"
 networks:
   proxy:
     external: true
