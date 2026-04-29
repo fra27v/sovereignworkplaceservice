@@ -1,0 +1,68 @@
+services:
+  vault-agent:
+    image: hashicorp/vault:1.19
+    container_name: midpoint-agent
+    restart: unless-stopped
+    command: agent -config=/config/agent.hcl
+    volumes:
+      - ./config:/config
+      - ./templates:/templates
+      - ./secrets:/secrets
+    networks:
+      - proxy
+
+  midpoint-db:
+    image: postgres:16
+    container_name: midpoint-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: midpoint
+      POSTGRES_USER: midpoint
+      POSTGRES_PASSWORD_FILE: /secrets/db_password
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./secrets:/secrets:ro
+    command: >
+      sh -c '
+        until [ -s /secrets/db_password ];
+        do
+          echo "waiting for Vault Agent secrets...";
+          sleep 2;
+        done;
+        exec docker-entrypoint.sh postgres
+      '
+    networks:
+      - proxy
+
+  midpoint:
+    image: evolveum/midpoint:4.9
+    container_name: midpoint
+    restart: unless-stopped
+    depends_on:
+      - vault-agent
+      - midpoint-db
+    environment:
+      MP_INIT_CFG: /opt/midpoint/var
+      MP_SET_midpoint_repository_type: native
+      MP_SET_midpoint_repository_database: postgresql
+      MP_SET_midpoint_repository_jdbcUsername: midpoint
+      MP_SET_midpoint_repository_jdbcPassword_FILE: /secrets/db_password
+      MP_SET_midpoint_repository_jdbcUrl: jdbc:postgresql://midpoint-db:5432/midpoint
+      MP_SET_midpoint_audit_service_factoryClass: com.evolveum.midpoint.repo.sqale.audit.SqaleAuditServiceFactory
+      MP_SET_midpoint_audit_service_auditServiceFactoryClass: com.evolveum.midpoint.repo.sqale.audit.SqaleAuditServiceFactory
+    volumes:
+      - midpoint_data:/opt/midpoint/var
+      - ./secrets:/secrets:ro
+      - ./scripts/midpoint-entrypoint.sh:/usr/local/bin/midpoint-entrypoint.sh:ro
+      - ../../pki/issued/identity.internal:/tls:ro
+      - ../../pki/ca/internal-ca.crt:/usr/local/share/ca-certificates/internal-ca.crt:ro
+    entrypoint: ["/bin/bash", "/usr/local/bin/midpoint-entrypoint.sh"]
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  midpoint_data:

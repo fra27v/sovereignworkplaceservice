@@ -1,0 +1,22 @@
+http:
+  routers:
+    identity-internal:
+      rule: "Host(`identity.internal`)"
+      entryPoints:
+        - websecure
+      tls: {}
+      service: identity-internal-svc
+
+  services:
+    identity-internal-svc:
+      loadBalancer:
+        passHostHeader: true
+        serversTransport: identity-internal-ca
+        servers:
+          - url: "https://midpoint:8443"
+
+  serversTransports:
+    identity-internal-ca:
+      serverName: "identity.internal"
+      rootCAs:
+        - "/pki/ca/internal-ca.crt"
