@@ -50,3 +50,13 @@ template {
   source      = "/templates/020-security-policy-keycloak.xml.ctmpl"
   destination = "/generated/020-security-policy-keycloak.xml"
 }
+
+template {
+  source      = "/templates/030-system-configuration-security-policy.xml.ctmpl"
+  destination = "/generated/030-system-configuration-security-policy.xml"
+}
+
+template {
+  source      = "/templates/midpoint_adm_password.ctmpl"
+  destination = "/secrets/midpoint_adm_password"
+}

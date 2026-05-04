@@ -102,7 +102,10 @@ export JAVA_OPTS="${JAVA_OPTS:-} \
   -Dserver.ssl.trust-store=/tls/truststore.p12 \
   -Dserver.ssl.trust-store-password=$(cat /secrets/tls_truststore_password) \
   -Dserver.ssl.trust-store-type=PKCS12 \
-  -Dserver.port=8443"
+  -Dserver.port=8443 \
+  -Djavax.net.ssl.trustStore=/tls/truststore.p12 \
+  -Djavax.net.ssl.trustStorePassword=$(cat /secrets/tls_truststore_password) \
+  -Djavax.net.ssl.trustStoreType=PKCS12"
 
 ########################################
 # 7. START MIDPOINT
@@ -131,6 +134,23 @@ if [ ! -f "$BOOTSTRAP_MARKER" ]; then
     bin/ninja.sh import --input /generated/020-security-policy-keycloak.xml --overwrite
   else
     echo "WARN: /generated/020-security-policy-keycloak.xml not found"
+  fi
+
+  if [ -f /generated/030-system-configuration-security-policy.xml ]; then
+    echo "binding Keycloak security policy as global policy..."
+    bin/ninja.sh import --input /generated/030-system-configuration-security-policy.xml --overwrite
+  else
+    echo "WARN: /generated/030-system-configuration-security-policy.xml not found"
+  fi
+
+  if [ -s /secrets/midpoint_adm_password ]; then
+    echo "setting administrator password from Vault..."
+    cd /opt/midpoint
+    bin/ninja.sh set-password \
+      --user administrator \
+      --password "$(cat /secrets/midpoint_adm_password)"
+  else
+    echo "WARN: /secrets/midpoint_adm_password not found or empty"
   fi
 
   touch "$BOOTSTRAP_MARKER"
