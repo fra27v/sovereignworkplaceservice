@@ -1,0 +1,4 @@
+docker exec -it midpoint bash -lc 'openssl pkcs12 -export -in /tls/tls.crt -inkey /tls/tls.key -certfile /tls/ca.crt -name tomcat -out /tmp/keystore.p12 -passout pass:$(cat /secrets/tls_keystore_password)'
+docker exec -it midpoint bash -lc 'rm -f /tmp/truststore.p12 && keytool -importcert -noprompt -alias internal-ca -file /tls/ca.crt -keystore /tmp/truststore.p12 -storetype PKCS12 -storepass $(cat /secrets/tls_truststore_password)'
+docker cp midpoint:/tmp/keystore.p12 ..\..\pki\issued\identity.internal\keystore.p12
+docker cp midpoint:/tmp/truststore.p12 ..\..\pki\issued\identity.internal\truststore.p12

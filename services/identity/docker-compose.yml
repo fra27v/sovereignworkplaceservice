@@ -8,6 +8,7 @@ services:
       - ./config:/config
       - ./templates:/templates
       - ./secrets:/secrets
+      - ./generated:/generated
     networks:
       - proxy
 
@@ -50,8 +51,10 @@ services:
       MP_SET_midpoint_repository_jdbcUrl: jdbc:postgresql://midpoint-db:5432/midpoint
       MP_SET_midpoint_audit_service_factoryClass: com.evolveum.midpoint.repo.sqale.audit.SqaleAuditServiceFactory
       MP_SET_midpoint_audit_service_auditServiceFactoryClass: com.evolveum.midpoint.repo.sqale.audit.SqaleAuditServiceFactory
+      MP_SET_midpoint_keystore_keyStorePassword_FILE: /secrets/midpoint_keystore_password
     volumes:
-      - midpoint_data:/opt/midpoint/var
+      - ./generated:/generated
+      - ./var:/opt/midpoint/var
       - ./secrets:/secrets:ro
       - ./scripts/midpoint-entrypoint.sh:/usr/local/bin/midpoint-entrypoint.sh:ro
       - ../../pki/issued/identity.internal:/tls:ro
@@ -63,6 +66,4 @@ services:
 networks:
   proxy:
     external: true
-
-volumes:
-  midpoint_data:
+  

@@ -1,0 +1,84 @@
+<configuration xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3">
+    <midpoint>
+        <webApplication>
+            <importFolder>${midpoint.home}/import</importFolder>
+        </webApplication>
+
+        <repository>
+            <type>native</type>
+            <jdbcUrl>jdbc:postgresql://midpoint-db:5432/midpoint</jdbcUrl>
+            <jdbcUsername>midpoint</jdbcUsername>
+            <jdbcPassword>{{ with secret "kv/data/identity" }}{{ .Data.data.db_password }}{{ end }}</jdbcPassword>
+        </repository>
+
+        <audit>
+            <auditService>
+                <auditServiceFactoryClass>com.evolveum.midpoint.audit.impl.LoggerAuditServiceFactory</auditServiceFactoryClass>
+            </auditService>
+            <auditService>
+                <auditServiceFactoryClass>com.evolveum.midpoint.repo.sqale.audit.SqaleAuditServiceFactory</auditServiceFactoryClass>
+            </auditService>
+        </audit>
+
+        <icf>
+            <scanClasspath>true</scanClasspath>
+            <scanDirectory>${midpoint.home}/icf-connectors</scanDirectory>
+            <scanDirectory>${midpoint.home}/connid-connectors</scanDirectory>
+        </icf>
+
+        <keystore>
+            <keyStorePath>${midpoint.home}/keystore.jceks</keyStorePath>
+            <keyStorePassword>{{ with secret "kv/data/identity" }}{{ .Data.data.midpoint_keystore_password }}{{ end }}</keyStorePassword>
+            <encryptionKeyAlias>default</encryptionKeyAlias>
+        </keystore>
+
+        <securityPolicy>
+            <authentication>
+                <modules>
+                    <loginForm>
+                        <identifier>loginForm</identifier>
+                    </loginForm>
+
+                    <oidc>
+                        <identifier>gui-oidc</identifier>
+                        <client>
+                            <registrationId>keycloak</registrationId>
+                            <clientId>midpoint</clientId>
+                            <clientSecret>
+                                <t:clearValue>{{ with secret "kv/data/identity" }}{{ .Data.data.oidc_client_secret }}{{ end }}</t:clearValue>
+                            </clientSecret>
+                            <clientAuthenticationMethod>clientSecretBasic</clientAuthenticationMethod>
+                            <nameOfUsernameAttribute>preferred_username</nameOfUsernameAttribute>
+                            <openIdProvider>
+                                <issuerUri>https://auth.internal/realms/sovereign</issuerUri>
+                            </openIdProvider>
+                        </client>
+                    </oidc>
+                </modules>
+
+                <sequence>
+                    <identifier>gui-oidc</identifier>
+                    <channel>
+                        <channelId>http://midpoint.evolveum.com/xml/ns/public/common/channels-3#user</channelId>
+                        <default>true</default>
+                        <urlSuffix>gui-oidc</urlSuffix>
+                    </channel>
+                    <module>
+                        <identifier>gui-oidc</identifier>
+                    </module>
+                </sequence>
+
+                <sequence>
+                    <identifier>gui-login-form</identifier>
+                    <channel>
+                        <channelId>http://midpoint.evolveum.com/xml/ns/public/common/channels-3#user</channelId>
+                        <urlSuffix>gui-login-form</urlSuffix>
+                    </channel>
+                    <module>
+                        <identifier>loginForm</identifier>
+                    </module>
+                </sequence>
+            </authentication>
+        </securityPolicy>
+    </midpoint>
+</configuration>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<securityPolicy
+    xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:org="http://midpoint.evolveum.com/xml/ns/public/common/org-3"
+    xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3"
+    oid="00000000-0000-0000-0000-000000000120">
+
+    <name>Default Security Policy</name>
+
+    <authentication>
+        <modules>
+            <loginForm>
+                <identifier>loginForm</identifier>
+            </loginForm>
+
+            <httpBasic>
+                <identifier>httpBasic</identifier>
+            </httpBasic>
+
+            <oidc>
+                <identifier>gui-oidc</identifier>
+                <client>
+                    <registrationId>keycloak</registrationId>
+                    <clientId>midpoint</clientId>
+                    <clientSecret>
+                        <t:clearValue>{{ with secret "kv/data/identity" }}{{ .Data.data.oidc_client_secret }}{{ end }}</t:clearValue>
+                    </clientSecret>
+                    <clientAuthenticationMethod>clientSecretPost</clientAuthenticationMethod>
+                    <nameOfUsernameAttribute>preferred_username</nameOfUsernameAttribute>
+                    <openIdProvider>
+                        <issuerUri>https://auth.internal/realms/sovereign</issuerUri>
+                        <authorizationUri>https://auth.internal/realms/sovereign/protocol/openid-connect/auth</authorizationUri>
+                        <tokenUri>https://auth.internal/realms/sovereign/protocol/openid-connect/token</tokenUri>
+                        <userInfoUri>https://auth.internal/realms/sovereign/protocol/openid-connect/userinfo</userInfoUri>
+                        <jwkSetUri>https://auth.internal/realms/sovereign/protocol/openid-connect/certs</jwkSetUri>
+                    </openIdProvider>
+                </client>
+            </oidc>
+        </modules>
+
+        <sequence>
+            <identifier>admin-gui-default</identifier>
+            <displayName>Default gui OIDC sequence</displayName>
+            <channel>
+                <channelId>http://midpoint.evolveum.com/xml/ns/public/common/channels-3#user</channelId>
+                <default>true</default>
+                <urlSuffix>gui-default</urlSuffix>
+            </channel>
+            <module>
+                <identifier>gui-oidc</identifier>
+                <order>1</order>
+                <necessity>sufficient</necessity>
+            </module>
+        </sequence>
+
+        <sequence>
+            <identifier>gui-login-form</identifier>
+            <displayName>Breakglass local login</displayName>
+            <channel>
+                <channelId>http://midpoint.evolveum.com/xml/ns/public/common/channels-3#user</channelId>
+                <urlSuffix>gui-login-form</urlSuffix>
+            </channel>
+            <module>
+                <identifier>loginForm</identifier>
+                <order>1</order>
+                <necessity>sufficient</necessity>
+            </module>
+        </sequence>
+
+        <sequence>
+            <identifier>rest-default</identifier>
+            <channel>
+                <channelId>http://midpoint.evolveum.com/xml/ns/public/common/channels-3#rest</channelId>
+                <default>true</default>
+                <urlSuffix>rest-default</urlSuffix>
+            </channel>
+            <module>
+                <identifier>httpBasic</identifier>
+                <order>1</order>
+                <necessity>sufficient</necessity>
+            </module>
+        </sequence>
+
+        <sequence>
+            <identifier>actuator-default</identifier>
+            <channel>
+                <channelId>http://midpoint.evolveum.com/xml/ns/public/common/channels-3#actuator</channelId>
+                <default>true</default>
+                <urlSuffix>actuator-default</urlSuffix>
+            </channel>
+            <module>
+                <identifier>httpBasic</identifier>
+                <order>1</order>
+                <necessity>sufficient</necessity>
+            </module>
+        </sequence>
+
+        <ignoredLocalPath>/actuator/health</ignoredLocalPath>
+    </authentication>
+</securityPolicy>

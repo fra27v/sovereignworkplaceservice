@@ -13,10 +13,17 @@ until [ -s /secrets/db_password ] &&
       [ -s /secrets/tls_keystore_password ] &&
       [ -s /secrets/tls_truststore_password ] &&
       [ -s /tls/keystore.p12 ] &&
-      [ -s /tls/truststore.p12 ];
+      [ -s /tls/truststore.p12 ] &&
+      [ -s /secrets/midpoint_keystore_password ] &&
+      [ -s /generated/config.xml ];
 do
   sleep 2
 done
+
+echo "Vault/TLS/config ready"
+
+echo "copying config.xml..."
+cp /generated/config.xml /opt/midpoint/var/config.xml
 
 ########################################
 # 2. INSTALL PSQL IF MISSING
@@ -101,6 +108,34 @@ export JAVA_OPTS="${JAVA_OPTS:-} \
 # 7. START MIDPOINT
 ########################################
 
-echo "starting midPoint..."
+echo "starting midPoint (background)..."
 
-exec /opt/midpoint/bin/midpoint.sh container
+/opt/midpoint/bin/midpoint.sh container &
+MIDPOINT_PID=$!
+
+echo "waiting for midPoint health..."
+until curl -k -s https://localhost:8443/midpoint/actuator/health | grep -q "UP"; do
+  sleep 5
+done
+
+echo "midPoint is UP"
+
+BOOTSTRAP_MARKER="/opt/midpoint/var/.bootstrap-done"
+
+if [ ! -f "$BOOTSTRAP_MARKER" ]; then
+  echo "running bootstrap..."
+
+  if [ -f /generated/020-security-policy-keycloak.xml ]; then
+    echo "importing security policy..."
+    cd /opt/midpoint
+    bin/ninja.sh import --input /generated/020-security-policy-keycloak.xml --overwrite
+  else
+    echo "WARN: /generated/020-security-policy-keycloak.xml not found"
+  fi
+
+  touch "$BOOTSTRAP_MARKER"
+else
+  echo "bootstrap already done, skipping"
+fi
+
+wait "$MIDPOINT_PID"

@@ -35,3 +35,18 @@ template {
   source      = "/templates/tls_truststore_password.ctmpl"
   destination = "/secrets/tls_truststore_password"
 }
+
+template {
+  source      = "/templates/config.xml.ctmpl"
+  destination = "/generated/config.xml"
+}
+
+template {
+  source      = "/templates/midpoint_keystore_password.ctmpl"
+  destination = "/secrets/midpoint_keystore_password"
+}
+
+template {
+  source      = "/templates/020-security-policy-keycloak.xml.ctmpl"
+  destination = "/generated/020-security-policy-keycloak.xml"
+}
