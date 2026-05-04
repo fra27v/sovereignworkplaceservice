@@ -61,6 +61,7 @@ cd /opt/midpoint
 
 echo "ensuring midPoint config.xml exists..."
 export MP_INIT_CFG=/opt/midpoint/var
+export MP_SET_midpoint_administrator_initialPassword="$(tr -d '\r\n' < /secrets/midpoint_adm_password)"
 bin/midpoint.sh init-native
 
 ########################################
@@ -124,30 +125,36 @@ done
 echo "midPoint is UP"
 
 BOOTSTRAP_MARKER="/opt/midpoint/var/.bootstrap-done"
+NEEDS_RESTART=false
 
 if [ ! -f "$BOOTSTRAP_MARKER" ]; then
   echo "running bootstrap..."
 
+  cd /opt/midpoint
+
   if [ -f /generated/020-security-policy-keycloak.xml ]; then
     echo "importing security policy..."
-    cd /opt/midpoint
     bin/ninja.sh import --input /generated/020-security-policy-keycloak.xml --overwrite
+    NEEDS_RESTART=true
   else
-    echo "WARN: /generated/020-security-policy-keycloak.xml not found"
+    echo "WARN: security policy file missing"
   fi
 
   if [ -f /generated/030-system-configuration-security-policy.xml ]; then
     echo "binding Keycloak security policy as global policy..."
     bin/ninja.sh import --input /generated/030-system-configuration-security-policy.xml --overwrite
+    NEEDS_RESTART=true
   else
-    echo "WARN: /generated/030-system-configuration-security-policy.xml not found"
+    echo "WARN: system configuration security policy file missing"
   fi
 
-  if [ -f /generated/040-administrator-password.xml ]; then
-    echo "setting administrator password from Vault..."
-    bin/ninja.sh import \
-      --input /generated/040-administrator-password.xml \
-      --overwrite
+  if [ "$NEEDS_RESTART" = true ]; then
+    echo "restarting midPoint so authentication policy is loaded..."
+    kill "$MIDPOINT_PID"
+    wait "$MIDPOINT_PID" || true
+
+    /opt/midpoint/bin/midpoint.sh container &
+    MIDPOINT_PID=$!
   fi
 
   touch "$BOOTSTRAP_MARKER"
