@@ -143,14 +143,11 @@ if [ ! -f "$BOOTSTRAP_MARKER" ]; then
     echo "WARN: /generated/030-system-configuration-security-policy.xml not found"
   fi
 
-  if [ -s /secrets/midpoint_adm_password ]; then
+  if [ -f /generated/040-administrator-password.xml ]; then
     echo "setting administrator password from Vault..."
-    cd /opt/midpoint
-    bin/ninja.sh set-password \
-      --user administrator \
-      --password "$(cat /secrets/midpoint_adm_password)"
-  else
-    echo "WARN: /secrets/midpoint_adm_password not found or empty"
+    bin/ninja.sh import \
+      --input /generated/040-administrator-password.xml \
+      --overwrite
   fi
 
   touch "$BOOTSTRAP_MARKER"

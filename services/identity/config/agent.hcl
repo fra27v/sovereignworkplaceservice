@@ -57,6 +57,6 @@ template {
 }
 
 template {
-  source      = "/templates/midpoint_adm_password.ctmpl"
-  destination = "/secrets/midpoint_adm_password"
+  source      = "/templates/040-administrator-password.xml.ctmpl"
+  destination = "/generated/040-administrator-password.xml"
 }
