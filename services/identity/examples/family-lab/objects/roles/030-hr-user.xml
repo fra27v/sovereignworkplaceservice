@@ -1,0 +1,4 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000004">
+  <name>hr-user</name>
+  <displayName>HR User</displayName>
+</role>

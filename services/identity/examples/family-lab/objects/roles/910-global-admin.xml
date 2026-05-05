@@ -1,0 +1,35 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+      oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000012">
+  <name>global-admin</name>
+  <displayName>Global Admin</displayName>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000005" type="RoleType"/>
+    <!-- This is the role that gives access to Files system administration. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000006" type="RoleType"/>
+    <!-- This is the role that gives access to HR system administration. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000007" type="RoleType"/>
+    <!-- This is the role that gives access to Passwords system administration. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000008" type="RoleType"/>
+    <!-- This is the role that gives access to Authorization system administration. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000009" type="RoleType"/>
+    <!-- This is the role that gives access to Identity system administration. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000010" type="RoleType"/>
+    <!-- This is the role that gives access to Validate Identity requests for security sensitive roles. -->
+  </inducement>
+</role>

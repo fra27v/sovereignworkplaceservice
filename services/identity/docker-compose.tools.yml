@@ -1,0 +1,17 @@
+services:
+  midpoint-importer:
+    image: curlimages/curl:latest
+    volumes:
+      - ./examples/family-lab:/import:ro
+      - ./secrets:/secrets:ro
+    environment:
+      MIDPOINT_URL: https://midpoint:8443/midpoint
+      MIDPOINT_USER: administrator
+      MIDPOINT_PASSWORD_FILE: /secrets/midpoint_adm_password
+    entrypoint: ["/bin/sh", "/import/bootstrap/import-all.sh"]
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

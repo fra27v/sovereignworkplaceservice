@@ -1,0 +1,4 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000005">
+  <name>files-admin</name>
+  <displayName>Files Admin</displayName>
+</role>

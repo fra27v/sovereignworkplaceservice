@@ -1,0 +1,47 @@
+<objectTemplate xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+                xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3"
+                oid="cccccccc-cccc-cccc-cccc-000000000001">
+  <name>family-lab-user-template</name>
+  <description>
+    Family Lab default user template. Assigns baseline roles to active users.
+  </description>
+
+  <mapping>
+    <name>active-users-get-end-user</name>
+    <strength>strong</strength>
+    <expression>
+      <assignmentTargetSearch>
+        <targetType>RoleType</targetType>
+        <filter>
+          <q:equal>
+            <q:path>name</q:path>
+            <q:value>End user</q:value>
+          </q:equal>
+        </filter>
+      </assignmentTargetSearch>
+    </expression>
+    <target>
+      <path>assignment</path>
+    </target>
+  </mapping>
+
+  <mapping>
+    <name>catalog-access</name>
+    <strength>strong</strength>
+    <expression>
+      <assignmentTargetSearch>
+        <targetType>RoleType</targetType>
+        <filter>
+          <q:equal>
+            <q:path>name</q:path>
+            <q:value>catalog-reader</q:value>
+          </q:equal>
+        </filter>
+      </assignmentTargetSearch>
+    </expression>
+    <target>
+      <path>assignment</path>
+    </target>
+  </mapping>
+
+</objectTemplate>

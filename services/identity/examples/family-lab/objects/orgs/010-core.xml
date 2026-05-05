@@ -1,0 +1,29 @@
+<org xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="aaaaaaaa-aaaa-aaaa-aaaa-000000000002">
+  <name>Core</name>
+  <!-- This is the core organization. It is used to assign core roles that are needed for the system to work. -->
+
+  <assignment>
+    <targetRef oid="aaaaaaaa-aaaa-aaaa-aaaa-000000000001" type="OrgType"/>
+    <!-- Parent is Family -->
+  </assignment>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000002" type="RoleType"/>
+    <!-- This is the role that gives access to password management. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000003" type="RoleType"/>
+    <!-- This is the role that gives access to file management. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000004" type="RoleType"/>
+    <!-- This is the role that gives access to HR management. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000010" type="RoleType"/>
+    <!-- This is the role that gives access to identity and security validation. -->
+  </inducement>
+</org>

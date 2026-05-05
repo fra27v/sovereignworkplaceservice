@@ -1,0 +1,24 @@
+<org xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="aaaaaaaa-aaaa-aaaa-aaaa-000000000003">
+  <name>Children</name>
+  <!-- This is the children organization. It is used to assign roles that are specific to children. -->
+
+  <assignment>
+    <targetRef oid="aaaaaaaa-aaaa-aaaa-aaaa-000000000001" type="OrgType"/>
+    <!-- Parent is Family -->
+  </assignment>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000002" type="RoleType"/>
+    <!-- This is the role that gives access to password management. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000003" type="RoleType"/>
+    <!-- This is the role that gives access to file management. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000004" type="RoleType"/>
+    <!-- This is the role that gives access to HR management. -->
+  </inducement>
+</org>

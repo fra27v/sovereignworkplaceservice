@@ -1,0 +1,2 @@
+system-configuration-user-template.xml
+system-configuration-role-catalog.xml

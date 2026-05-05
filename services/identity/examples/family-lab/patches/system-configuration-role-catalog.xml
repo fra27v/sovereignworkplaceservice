@@ -1,0 +1,17 @@
+<objectModification
+    xmlns="http://midpoint.evolveum.com/xml/ns/public/common/api-types-3"
+    xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3">
+
+  <itemDelta>
+    <t:modificationType>add</t:modificationType>
+    <t:path>c:adminGuiConfiguration/c:accessRequest/c:roleCatalog/c:collection</t:path>
+    <t:value>
+      <c:identifier>all-requestable-roles</c:identifier>
+      <c:default>true</c:default>
+      <c:collectionRef oid="dddddddd-dddd-dddd-dddd-000000000001"
+                       type="c:ObjectCollectionType"/>
+    </t:value>
+  </itemDelta>
+
+</objectModification>

@@ -1,0 +1,51 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+      xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3"
+      xmlns:org="http://midpoint.evolveum.com/xml/ns/public/common/org-3"
+      oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000101">
+
+  <name>catalog-reader</name>
+  <displayName>Catalog Reader</displayName>
+
+  <authorization>
+    <name>read-requestable-roles</name>
+    <action>http://midpoint.evolveum.com/xml/ns/public/security/authorization-model-3#read</action>
+
+    <object>
+      <type>RoleType</type>
+      <filter>
+        <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+          <q:path>requestable</q:path>
+          <q:value>true</q:value>
+        </q:equal>
+      </filter>
+    </object>
+  </authorization>
+
+    <authorization>
+    <name>assign-requestable-roles</name>
+    <action>http://midpoint.evolveum.com/xml/ns/public/security/authorization-model-3#assign</action>
+    <phase>request</phase>
+    <object>
+        <special>self</special>
+    </object>
+    <target>
+        <type>RoleType</type>
+        <filter>
+        <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+            <q:path>requestable</q:path>
+            <q:value>true</q:value>
+        </q:equal>
+        </filter>
+    </target>
+    <relation>org:default</relation>
+    </authorization>
+
+    <authorization>
+    <name>read-role-catalog-collections</name>
+    <action>http://midpoint.evolveum.com/xml/ns/public/security/authorization-model-3#read</action>
+    <object>
+        <type>ObjectCollectionType</type>
+    </object>
+    </authorization>
+
+</role>

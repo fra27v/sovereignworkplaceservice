@@ -1,0 +1,15 @@
+<objectModification
+    xmlns="http://midpoint.evolveum.com/xml/ns/public/common/api-types-3"
+    xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3">
+
+  <itemDelta>
+    <modificationType>replace</modificationType>
+    <path>defaultObjectPolicyConfiguration</path>
+    <value>
+      <c:type>c:UserType</c:type>
+      <c:objectTemplateRef oid="cccccccc-cccc-cccc-cccc-000000000001" type="c:ObjectTemplateType"/>
+      <!-- Family Lab default user template. Assigns baseline roles to active users. -->
+    </value>
+  </itemDelta>
+</objectModification>

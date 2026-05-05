@@ -1,0 +1,41 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+      oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000011">
+  <name>global-admin-request</name>
+  <displayName>Global Admin Request</displayName>
+  <description>
+    Requestable governance role. If approved by an Identity Security Validator,
+    it grants global-admin privileges indirectly.
+  </description>
+
+  <requestable>true</requestable>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000012" type="RoleType"/>
+    <!-- This is the role that gives global-admin privileges. -->
+  </inducement>
+
+  <assignment>
+    <policyRule>
+      <name>approve-global-admin-request</name>
+
+      <policyConstraints>
+        <assignment>
+          <operation>add</operation>
+        </assignment>
+      </policyConstraints>
+
+      <policyActions>
+        <approval>
+          <approvalSchema>
+            <stage>
+              <name>Identity Security Validator approval</name>
+              <approverRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000010" type="RoleType"/>
+              <!-- Identity Security Validator -->
+              <outcomeIfNoApprovers>reject</outcomeIfNoApprovers>
+            </stage>
+          </approvalSchema>
+        </approval>
+      </policyActions>
+    </policyRule>
+  </assignment>
+</role>

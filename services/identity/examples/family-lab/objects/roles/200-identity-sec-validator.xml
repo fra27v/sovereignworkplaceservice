@@ -1,0 +1,16 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000010">
+  <name>identity-sec-validator</name>
+  <displayName>Identity Security Validator</displayName>
+
+  <inducement>
+    <targetRef type="RoleType">
+      <filter>
+        <q:equal xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3">
+          <q:path>name</q:path>
+          <q:value>Approver</q:value>
+        </q:equal>
+      </filter>
+    </targetRef>
+  </inducement>  
+  
+</role>

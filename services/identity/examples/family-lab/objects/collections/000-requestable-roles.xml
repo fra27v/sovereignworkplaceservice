@@ -1,0 +1,14 @@
+<objectCollection xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+                  xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3"
+                  oid="dddddddd-dddd-dddd-dddd-000000000001">
+  <name>all-requestable-roles</name>
+
+  <type>RoleType</type>
+
+  <filter>
+    <q:equal>
+      <q:path>requestable</q:path>
+      <q:value>true</q:value>
+    </q:equal>
+  </filter>
+</objectCollection>
