@@ -78,6 +78,11 @@ services:
       - ./orangehrm-sync/org-mapping.json:/app/org-mapping.json:ro
     networks:
       - proxy
+    command: >
+      sh -c "while true; do
+        python /app/orangehrm-sync.py;
+        sleep ${SYNC_INTERVAL_SECONDS:-300};
+      done"
 
 networks:
   proxy:
