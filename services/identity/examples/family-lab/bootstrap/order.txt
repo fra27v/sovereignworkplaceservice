@@ -10,8 +10,8 @@ roles/140-identity-admin.xml
 roles/200-identity-sec-validator.xml
 roles/210-catalog-reader.xml
 
-roles/900-global-admin-request.xml
 roles/910-global-admin.xml
+roles/900-global-admin-request.xml
 
 orgs/000-family.xml
 orgs/010-core.xml

@@ -63,6 +63,22 @@ services:
     networks:
       - proxy
 
+  orangehrm-sync:
+    build: ./orangehrm-sync
+    container_name: orangehrm-sync
+    restart: unless-stopped
+    depends_on:
+      - midpoint
+    env_file:
+      - ./orangehrm-sync/.env
+    volumes:
+      - ./secrets:/secrets:ro
+      - ../../pki/ca/internal-ca.crt:/ca/internal-ca.crt:ro
+      - ./orangehrm-sync/orangehrm-sync.py:/app/orangehrm-sync.py:ro
+      - ./orangehrm-sync/org-mapping.json:/app/org-mapping.json:ro
+    networks:
+      - proxy
+
 networks:
   proxy:
     external: true

@@ -60,3 +60,13 @@ template {
   source      = "/templates/midpoint_adm_password.ctmpl"
   destination = "/secrets/midpoint_adm_password"
 }
+
+template {
+  source      = "/templates/orangehrm-db-username.ctmpl"
+  destination = "/secrets/orangehrm_db_username"
+}
+
+template {
+  source      = "/templates/orangehrm-db-password.ctmpl"
+  destination = "/secrets/orangehrm_db_password"
+}
