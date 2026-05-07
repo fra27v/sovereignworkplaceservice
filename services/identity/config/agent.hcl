@@ -70,3 +70,13 @@ template {
   source      = "/templates/orangehrm-db-password.ctmpl"
   destination = "/secrets/orangehrm_db_password"
 }
+
+template {
+  source      = "/templates/keycloak_connector_client_id.ctmpl"
+  destination = "/secrets/keycloak_connector_client_id"
+}
+
+template {
+  source      = "/templates/keycloak_connector_client_secret.ctmpl"
+  destination = "/secrets/keycloak_connector_client_secret"
+}

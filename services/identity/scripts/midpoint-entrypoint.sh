@@ -26,6 +26,40 @@ echo "copying config.xml..."
 cp /generated/config.xml /opt/midpoint/var/config.xml
 
 ########################################
+# 1.5. GET CONNECTORS INTO VAR
+########################################
+if ! command -v curl >/dev/null 2>&1; then
+  echo "installing curl..."
+  apt-get update
+  apt-get install -y curl
+fi
+
+CONNECTOR_DIR="/opt/midpoint/var/icf-connectors"
+
+KC_CONNECTOR_VERSION="1.1.6"
+KC_CONNECTOR_JAR="connector-keycloak-${KC_CONNECTOR_VERSION}.jar"
+KC_CONNECTOR_URL="https://repo1.maven.org/maven2/jp/openstandia/connector/connector-keycloak/${KC_CONNECTOR_VERSION}/${KC_CONNECTOR_JAR}"
+
+mkdir -p "${CONNECTOR_DIR}"
+
+if [ ! -f "${CONNECTOR_DIR}/${KC_CONNECTOR_JAR}" ]; then
+  echo "[midpoint] downloading Keycloak connector ${KC_CONNECTOR_VERSION}..."
+
+  TMP_FILE="${CONNECTOR_DIR}/${KC_CONNECTOR_JAR}.tmp"
+  rm -f "${TMP_FILE}"
+
+  curl -fL \
+    -o "${TMP_FILE}" \
+    "${KC_CONNECTOR_URL}"
+
+  mv "${TMP_FILE}" "${CONNECTOR_DIR}/${KC_CONNECTOR_JAR}"
+
+  echo "[midpoint] Keycloak connector installed."
+else
+  echo "[midpoint] Keycloak connector already present."
+fi
+
+########################################
 # 2. INSTALL PSQL IF MISSING
 ########################################
 

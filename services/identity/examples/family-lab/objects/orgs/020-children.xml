@@ -21,4 +21,9 @@
     <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000004" type="RoleType"/>
     <!-- This is the role that gives access to HR management. -->
   </inducement>
+
+ <inducement>
+  <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000041" type="RoleType"/>
+  <!-- This role represents IdP group membership /children. -->
+ </inducement>
 </org>

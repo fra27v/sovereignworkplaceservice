@@ -16,4 +16,9 @@
     <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000003" type="RoleType"/>
     <!-- This is the role that gives access to file management. -->
   </inducement>
+
+ <inducement>
+  <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000042" type="RoleType"/>
+  <!-- This role represents IdP group membership /extended. -->
+ </inducement>
 </org>

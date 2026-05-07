@@ -1,0 +1,9 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000040">
+
+ <name>IDP_GROUP_ORG_CORE</name>
+
+ <displayName>IdP Group - Org Core</displayName>
+
+ <description>Provisioning intent for identity provider group membership /core.</description>
+
+</role>

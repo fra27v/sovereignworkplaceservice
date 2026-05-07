@@ -26,4 +26,9 @@
     <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000010" type="RoleType"/>
     <!-- This is the role that gives access to identity and security validation. -->
   </inducement>
+
+ <inducement>
+  <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000040" type="RoleType"/>
+  <!-- This role represents IdP group membership /core. -->
+ </inducement>
 </org>

@@ -1,0 +1,9 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000041">
+
+ <name>IDP_GROUP_ORG_CHILDREN</name>
+
+ <displayName>IdP Group - Org Children</displayName>
+
+ <description>Provisioning intent for identity provider group membership /children.</description>
+
+</role>

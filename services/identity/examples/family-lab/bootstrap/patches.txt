@@ -1,2 +1,3 @@
 system-configuration-user-template.xml
 system-configuration-role-catalog.xml
+040-system-configuration-secret-provider.xml
