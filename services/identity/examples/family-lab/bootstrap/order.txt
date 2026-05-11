@@ -7,6 +7,7 @@ roles/030-hr-user.xml
 roles/040-idp-group-org-core.xml
 roles/041-idp-group-org-children.xml
 roles/042-idp-group-org-extended.xml
+roles/050-idp-account-user.xml
 
 roles/100-files-admin.xml
 roles/110-hr-admin.xml

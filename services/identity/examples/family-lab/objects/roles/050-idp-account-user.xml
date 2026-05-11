@@ -1,0 +1,13 @@
+<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000050">
+  <name>IDP_ACCOUNT_USER</name>
+  <displayName>Role to provision IDP accounts</displayName>
+
+    <inducement>
+        <construction>
+            <resourceRef oid="eeeeeeee-eeee-eeee-eeee-000000000010" type="ResourceType"/> 
+            <kind>account</kind>
+            <intent>default</intent>
+        </construction>
+    </inducement>
+    
+</role>

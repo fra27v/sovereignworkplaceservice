@@ -1,8 +1,31 @@
-<resource xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3" xmlns:icfs="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/resource-schema-3" xmlns:org="http://midpoint.evolveum.com/xml/ns/public/common/org-3" xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3" xmlns:ri="http://midpoint.evolveum.com/xml/ns/public/resource/instance-3" xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" oid="245dea6f-a9b9-4dd4-b29b-e33331b0c5b7">
+<resource xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" 
+            xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3" 
+            xmlns:icfs="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/resource-schema-3" 
+            xmlns:org="http://midpoint.evolveum.com/xml/ns/public/common/org-3" 
+            xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3" 
+            xmlns:ri="http://midpoint.evolveum.com/xml/ns/public/resource/instance-3" 
+            xmlns:t="http://prism.evolveum.com/xml/ns/public/types-3" 
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+            oid="eeeeeeee-eeee-eeee-eeee-000000000010">
     <name>IDP Connector</name>
     <lifecycleState>active</lifecycleState>
-    <connectorRef oid="31db41b6-0bb3-4242-9aa8-02d2af4cda31" relation="org:default" type="c:ConnectorType">
-        <!-- ConnId jp.openstandia.connector.keycloak.KeycloakConnector v1.1.6 -->
+    <connectorRef type="c:ConnectorType">
+        <filter>
+            <q:and>
+                <q:equal>
+                    <q:path>c:connectorBundle</q:path>
+                    <q:value>jp.openstandia.connector.connector-keycloak</q:value>
+                </q:equal>
+                <q:equal>
+                    <q:path>c:connectorType</q:path>
+                    <q:value>jp.openstandia.connector.keycloak.KeycloakConnector</q:value>
+                </q:equal>
+                <q:equal>
+                    <q:path>c:connectorVersion</q:path>
+                    <q:value>1.1.6</q:value>
+                </q:equal>
+            </q:and>
+        </filter>
     </connectorRef>
     <connectorConfiguration xmlns:icfc="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/connector-schema-3">
         <icfc:configurationProperties xmlns:cfg="http://midpoint.evolveum.com/xml/ns/public/connector/icf-1/bundle/jp.openstandia.connector.connector-keycloak/jp.openstandia.connector.keycloak.KeycloakConnector">
@@ -473,4 +496,95 @@
             </cap:script>
         </native>
     </capabilities>
+    <schemaHandling>
+        <objectType>
+            <kind>account</kind>
+            <intent>default</intent>
+            <displayName>Keycloak User</displayName>
+            <default>true</default>
+            <objectClass>ri:user</objectClass>
+
+            <!-- Mapping of user attributes. -->
+            <attribute>
+                <ref>ri:username</ref>
+                <outbound>
+                    <source>
+                        <path>name</path>
+                    </source>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:firstName</ref>
+                <outbound>
+                    <source>
+                        <path>givenName</path>
+                    </source>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:lastName</ref>
+                <outbound>
+                    <source>
+                        <path>familyName</path>
+                    </source>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:email</ref>
+                <outbound>
+                    <source>
+                        <path>emailAddress</path>
+                    </source>
+                </outbound>
+            </attribute>
+            <attribute>
+                <ref>ri:emailVerified</ref>
+                <outbound>
+                    <strength>strong</strength>
+                    <expression>
+                        <value>true</value>
+                    </expression>
+                </outbound>
+            </attribute>
+            <activation>
+                <administrativeStatus>
+                    <outbound>
+                        <source>
+                            <path>activation/administrativeStatus</path>
+                        </source>
+                    </outbound>
+                </administrativeStatus>
+            </activation>
+
+            <!-- Association to groups. -->
+            <association>
+                <ref>ri:groupMembership</ref>
+                <kind>entitlement</kind>
+                <intent>group</intent>
+                <direction>subjectToObject</direction>
+                <associationAttribute>ri:groups</associationAttribute>
+                <valueAttribute>ri:groupId</valueAttribute>
+                <tolerant>false</tolerant>
+            </association>
+
+        </objectType>
+
+        <!-- Group object type. -->
+        <objectType>
+            <kind>entitlement</kind>
+            <intent>group</intent>
+            <objectClass>ri:group</objectClass>
+
+            <attribute>
+                <ref>ri:name</ref>
+            </attribute>
+
+            <attribute>
+                <ref>ri:path</ref>
+            </attribute>
+        </objectType>
+    </schemaHandling>
 </resource>

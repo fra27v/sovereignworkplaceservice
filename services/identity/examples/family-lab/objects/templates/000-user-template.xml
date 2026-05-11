@@ -44,4 +44,23 @@
     </target>
   </mapping>
 
+  <mapping>
+      <name>active-users-get-idp-account</name>
+      <strength>strong</strength>
+      <expression>
+          <assignmentTargetSearch>
+              <targetType>RoleType</targetType>
+              <filter>
+                  <q:equal>
+                      <q:path>name</q:path>
+                      <q:value>IDP_ACCOUNT_USER</q:value>
+                  </q:equal>
+              </filter>
+          </assignmentTargetSearch>
+      </expression>
+      <target>
+          <path>assignment</path>
+      </target>
+  </mapping>
+
 </objectTemplate>
