@@ -1,5 +1,19 @@
 resources/010-idp-keycloak.xml
 
+roles/060-idp-managed-group-org-core.xml
+roles/061-idp-managed-group-org-children.xml
+roles/062-idp-managed-group-org-extended.xml
+
+roles/070-idp-managed-group-app-files-user.xml
+roles/071-idp-managed-group-app-hr-user.xml
+roles/072-idp-managed-group-app-passwords-user.xml
+
+roles/080-idp-managed-group-admin-auth.xml
+roles/081-idp-managed-group-admin-identity.xml
+roles/082-idp-managed-group-admin-files.xml
+roles/083-idp-managed-group-admin-hr.xml
+roles/084-idp-managed-group-admin-passwords.xml
+
 roles/010-passwords-user.xml
 roles/020-files-user.xml
 roles/030-hr-user.xml

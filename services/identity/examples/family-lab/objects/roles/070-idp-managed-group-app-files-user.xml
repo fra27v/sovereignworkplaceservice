@@ -1,0 +1,29 @@
+<role
+    xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:ri="http://midpoint.evolveum.com/xml/ns/public/resource/instance-3"
+    oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000070">
+
+    <name>IDP_MANAGED_GROUP_APP_FILES_USER</name>
+    <displayName>IdP Managed Group - App Files User</displayName>
+    <description>Managed Keycloak group files-user.</description>
+
+    <assignment>
+        <construction>
+            <resourceRef oid="eeeeeeee-eeee-eeee-eeee-000000000010" type="c:ResourceType"/>
+            <kind>entitlement</kind>
+            <intent>group</intent>
+
+            <attribute>
+                <ref>ri:name</ref>
+                <outbound>
+                    <strength>strong</strength>
+                    <expression>
+                        <value>files-user</value>
+                    </expression>
+                </outbound>
+            </attribute>
+        </construction>
+    </assignment>
+
+</role>

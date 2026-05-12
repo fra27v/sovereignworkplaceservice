@@ -1,4 +1,51 @@
-<role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3" oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000004">
-  <name>hr-user</name>
-  <displayName>HR User</displayName>
+<role
+    xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:ri="http://midpoint.evolveum.com/xml/ns/public/resource/instance-3"
+    xmlns:q="http://prism.evolveum.com/xml/ns/public/query-3"
+    oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000004">
+
+    <name>hr-user</name>
+    <displayName>HR User</displayName>
+
+    <inducement>
+        <construction>
+            <resourceRef oid="eeeeeeee-eeee-eeee-eeee-000000000010" type="c:ResourceType"/>
+            <kind>account</kind>
+            <intent>default</intent>
+
+            <association>
+                <ref>ri:groupMembership</ref>
+                <outbound>
+                    <strength>strong</strength>
+                    <expression>
+                        <associationTargetSearch>
+                            <targetType>ShadowType</targetType>
+                            <filter>
+                                <q:and>
+                                    <q:ref>
+                                        <q:path>resourceRef</q:path>
+                                        <q:value oid="eeeeeeee-eeee-eeee-eeee-000000000010" type="c:ResourceType"/>
+                                    </q:ref>
+                                    <q:equal>
+                                        <q:path>kind</q:path>
+                                        <q:value>entitlement</q:value>
+                                    </q:equal>
+                                    <q:equal>
+                                        <q:path>intent</q:path>
+                                        <q:value>group</q:value>
+                                    </q:equal>
+                                    <q:equal>
+                                        <q:path>attributes/ri:name</q:path>
+                                        <q:value>hr-user</q:value>
+                                    </q:equal>
+                                </q:and>
+                            </filter>
+                        </associationTargetSearch>
+                    </expression>
+                </outbound>
+            </association>
+        </construction>
+    </inducement>
+
 </role>
