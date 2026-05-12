@@ -1,0 +1,18 @@
+<role
+    xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+    oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000150">
+
+    <name>IDP_ADMIN_ACCOUNT</name>
+    <displayName>IdP Admin Account</displayName>
+    <description>Creates and enables the privileged Keycloak admin account adm_USER.</description>
+
+    <inducement>
+        <construction>
+            <resourceRef oid="eeeeeeee-eeee-eeee-eeee-000000000010" type="c:ResourceType"/>
+            <kind>account</kind>
+            <intent>admin</intent>
+        </construction>
+    </inducement>
+
+</role>

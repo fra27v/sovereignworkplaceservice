@@ -1,4 +1,8 @@
+patches/040-system-configuration-secret-provider.xml
+
 resources/010-idp-keycloak.xml
+
+roles/150-idp-admin-account.xml
 
 roles/060-idp-managed-group-org-core.xml
 roles/061-idp-managed-group-org-children.xml
@@ -42,3 +46,6 @@ orgs/030-extended.xml
 collections/000-requestable-roles.xml
 
 templates/000-user-template.xml
+
+patches/system-configuration-user-template.xml
+patches/system-configuration-role-catalog.xml

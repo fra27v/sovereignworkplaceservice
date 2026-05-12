@@ -577,6 +577,105 @@
 
         </objectType>
 
+        <objectType>
+            <kind>account</kind>
+            <intent>admin</intent>
+            <displayName>Keycloak Admin User</displayName>
+            <objectClass>ri:user</objectClass>
+
+            <attribute>
+                <ref>ri:username</ref>
+                <outbound>
+                    <strength>strong</strength>
+                    <source>
+                        <path>name</path>
+                        <name>username</name>
+                    </source>
+                    <expression>
+                        <script>
+                            <code>
+                                return 'adm_' + username?.toString()
+                            </code>
+                        </script>
+                    </expression>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:firstName</ref>
+                <outbound>
+                    <source>
+                        <path>givenName</path>
+                    </source>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:lastName</ref>
+                <outbound>
+                    <source>
+                        <path>familyName</path>
+                    </source>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:email</ref>
+                <outbound>
+                    <strength>strong</strength>
+                    <source>
+                        <path>emailAddress</path>
+                        <name>email</name>
+                    </source>
+                    <expression>
+                        <script>
+                            <code>
+                                def mail = email?.toString()
+                                if (mail == null || !mail.contains('@')) {
+                                    return null
+                                }
+                                def parts = mail.split('@', 2)
+                                return 'adm_' + parts[0] + '@' + parts[1]
+                            </code>
+                        </script>
+                    </expression>
+                </outbound>
+            </attribute>
+
+            <attribute>
+                <ref>ri:emailVerified</ref>
+                <outbound>
+                    <strength>strong</strength>
+                    <expression>
+                        <value>true</value>
+                    </expression>
+                </outbound>
+            </attribute>
+
+            <activation>
+                <administrativeStatus>
+                    <outbound>
+                        <strength>strong</strength>
+                        <expression>
+                            <script>
+                                <code>
+                                    import com.evolveum.midpoint.xml.ns._public.common.common_3.ActivationStatusType
+
+                                    def userStatus = focus?.activation?.administrativeStatus
+
+                                    if (userStatus == null) {
+                                        return ActivationStatusType.DISABLED
+                                    }
+
+                                    return userStatus
+                                </code>
+                            </script>
+                        </expression>
+                    </outbound>
+                </administrativeStatus>
+            </activation>
+        </objectType>
+
         <!-- Group object type. -->
         <objectType>
             <kind>entitlement</kind>

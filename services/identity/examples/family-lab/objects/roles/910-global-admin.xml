@@ -1,4 +1,5 @@
 <role xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
+      xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
       oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000012">
   <name>global-admin</name>
   <displayName>Global Admin</displayName>
@@ -31,5 +32,10 @@
   <inducement>
     <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000010" type="RoleType"/>
     <!-- This is the role that gives access to Validate Identity requests for security sensitive roles. -->
+  </inducement>
+
+  <inducement>
+    <targetRef oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000150" type="RoleType"/>
+    <!-- This is the role that gives access to Keycloak administration. -->
   </inducement>
 </role>

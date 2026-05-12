@@ -50,10 +50,8 @@ get_type_and_oid() {
   echo "$collection $oid"
 }
 
-while IFS= read -r file || [ -n "$file" ]; do
-  case "$file" in
-    ""|\#*) continue ;;
-  esac
+import_object() {
+  file="$1"
 
   set -- $(get_type_and_oid "$file")
   collection="$1"
@@ -78,34 +76,43 @@ while IFS= read -r file || [ -n "$file" ]; do
   fi
 
   echo ""
+}
+
+apply_patch() {
+  patch="$1"
+
+  echo "Patching system configuration with $patch"
+
+  http_code="$(curl -k -sS -o /tmp/midpoint-patch-result.xml -w "%{http_code}" \
+    -u "$USER:$PASS" \
+    -H "Content-Type: application/xml" \
+    -X PATCH "$BASE_URL/ws/rest/systemConfigurations/00000000-0000-0000-0000-000000000001" \
+    --data-binary "@/import/$patch")"
+
+  if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
+    echo "OK HTTP $http_code"
+  else
+    echo "FAILED HTTP $http_code"
+    cat /tmp/midpoint-patch-result.xml
+    exit 1
+  fi
+
+  echo ""
+}
+
+while IFS= read -r item || [ -n "$item" ]; do
+  case "$item" in
+    ""|\#*) continue ;;
+  esac
+
+  case "$item" in
+    patches/*.xml)
+      apply_patch "$item"
+      ;;
+    *)
+      import_object "$item"
+      ;;
+  esac
 done < order.txt
-
-if [ -f patches.txt ]; then
-  echo "Applying patches..."
-
-  while IFS= read -r patch || [ -n "$patch" ]; do
-    case "$patch" in
-      ""|\#*) continue ;;
-    esac
-
-    echo "Patching system configuration with $patch"
-
-    http_code="$(curl -k -sS -o /tmp/midpoint-patch-result.xml -w "%{http_code}" \
-      -u "$USER:$PASS" \
-      -H "Content-Type: application/xml" \
-      -X PATCH "$BASE_URL/ws/rest/systemConfigurations/00000000-0000-0000-0000-000000000001" \
-      --data-binary "@/import/patches/$patch")"
-
-    if [ "$http_code" = "200" ] || [ "$http_code" = "204" ]; then
-      echo "OK HTTP $http_code"
-    else
-      echo "FAILED HTTP $http_code"
-      cat /tmp/midpoint-patch-result.xml
-      exit 1
-    fi
-
-    echo ""
-  done < patches.txt
-fi
 
 echo "Import completed."
