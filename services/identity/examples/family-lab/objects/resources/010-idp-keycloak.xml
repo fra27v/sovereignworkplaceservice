@@ -570,6 +570,11 @@
                 <tolerant>false</tolerant>
             </association>
 
+            <attribute>
+                <ref>ri:groups</ref>
+                <fetchStrategy>explicit</fetchStrategy>
+            </attribute>
+
         </objectType>
 
         <!-- Group object type. -->
