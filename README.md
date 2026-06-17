@@ -2,6 +2,8 @@
 
 Lab Sovrano is a sovereign, self-hosted digital workplace lab. The objective is to build a managed platform that can provide identity, collaboration, secure access, secrets management, and tenant isolation with a strong preference for open, controllable components.
 
+Documentation-as-code is available in [docs/README.md](docs/README.md).
+
 The platform is not intended to be a low-cost Microsoft 365 clone. It is a controlled enterprise environment for organizations that value sovereignty, auditability, predictable operations, and limited, governed customization.
 
 During development, some products changed from the original target stack. This README reflects the current implementation state and separates implemented components from future developments.
