@@ -64,8 +64,23 @@
   </mapping>
 
   <mapping>
-      <name>all-users-get-idp-admin-account</name>
+      <name>admin-users-get-idp-admin-account</name>
       <strength>strong</strength>
+      <condition>
+          <script>
+              <code>
+                  def hasAdminEnablementRole = focus?.roleMembershipRef?.any {
+                      it?.oid == 'bbbbbbbb-bbbb-bbbb-bbbb-000000000151'
+                  }
+
+                  def hasPersistentAdminAccountRole = focus?.assignment?.any {
+                      it?.targetRef?.oid == 'bbbbbbbb-bbbb-bbbb-bbbb-000000000150'
+                  }
+
+                  return hasAdminEnablementRole || hasPersistentAdminAccountRole
+              </code>
+          </script>
+      </condition>
       <expression>
           <assignmentTargetSearch>
               <targetType>RoleType</targetType>

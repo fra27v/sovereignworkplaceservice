@@ -1,301 +1,332 @@
-# Core positioning
+# Lab Sovrano
 
-A *sovereign, self-hosted digital workplace platform*, operated as a managed service, with:
+Lab Sovrano is a sovereign, self-hosted digital workplace lab. The objective is to build a managed platform that can provide identity, collaboration, secure access, secrets management, and tenant isolation with a strong preference for open, controllable components.
 
-* collaboration
-* communication
-* identity
-* service management
-* automation
-* secure multi-tenant hosting
+The platform is not intended to be a low-cost Microsoft 365 clone. It is a controlled enterprise environment for organizations that value sovereignty, auditability, predictable operations, and limited, governed customization.
 
-It is *not* a mass-market Microsoft 365 clone. It is a *controlled enterprise platform* for customers that value:
-
-* sovereignty
-* auditability
-* controlled customization
-* predictable operations
+During development, some products changed from the original target stack. This README reflects the current implementation state and separates implemented components from future developments.
 
 ---
 
-# 1. Functional stack
+# 1. Current Implemented Stack
 
-## Identity and access
+## Identity and Access
 
-* *midPoint* → identity lifecycle and provisioning brain
-* *Keycloak* → authentication, SSO, groups, roles, token issuance
+Implemented components:
 
-### Identity flow
+* OrangeHRM as the HR source
+* midPoint as the identity lifecycle and provisioning engine
+* Keycloak as the identity provider, SSO hub, group authority, role authority, and token issuer
 
-* *HR* is the source of truth
-* *midPoint* applies joiner / mover / leaver logic
-* *Keycloak* is the central identity hub for applications
-* Applications consume identity from Keycloak whenever possible
+Identity flow:
 
-### Principle
+```text
+OrangeHRM -> midPoint -> Keycloak -> applications
+```
 
-* Apps should integrate with *Keycloak*, not each separately with midPoint, except where direct provisioning is truly needed.
+Principles:
+
+* HR data is the source of truth for people and organizational structure.
+* midPoint applies joiner, mover, and leaver logic.
+* Keycloak is the central identity hub consumed by applications.
+* Applications should integrate with Keycloak whenever possible.
+* Direct provisioning from midPoint to an application is used only where it is technically necessary.
+
+Governed identity model:
+
+* Entitlements are modeled from the HR organization structure, so access follows business membership instead of ad hoc application-local administration.
+* Standard user access is provisioned from authoritative lifecycle data and reusable roles.
+* Temporary or sensitive access, especially administrative access, is handled through midPoint request and approval workflows.
+* Administrative access uses separate privileged accounts, not the normal daily user account.
+* Privileged accounts follow a fixed naming convention such as `adm_<username>`.
+* Privileged accounts are retained for audit continuity when temporary rights expire, but they are disabled when the approval, entitlement, or primary user status no longer allows use.
+* When the primary identity is deleted, related application accounts, including any privileged account, are removed through the normal provisioning lifecycle.
+
+This model is part of the intended platform differentiation. The same identity governance pattern should be reusable across tenants, customers, and production environments rather than being treated as a one-off lab configuration.
+
+## Collaboration and Documents
+
+Implemented components:
+
+* Nextcloud for file storage, sharing, permissions, and versioning
+* Collabora Online for browser-based document editing
+
+Original office-product assumptions were changed during implementation. The current office integration is based on Collabora, not Euro-Office Document Server.
+
+## Password Management
+
+Implemented component:
+
+* Vaultwarden for shared password management
+
+Vaultwarden is part of the current workplace stack and is integrated as a managed application in the lab.
+
+## Security and Secrets
+
+Implemented components:
+
+* HashiCorp Vault for secrets and internal PKI
+* Vault Agent templates for service secrets
+* internal TLS certificates issued per service
+* Traefik as the reverse proxy and routing layer
+
+Security principles:
+
+* TLS is used for both external and internal service traffic.
+* Runtime secrets are injected from Vault-managed material.
+* Secrets should not be hardcoded into containers or application configuration.
+* Internal service certificates are generated and renewed through the platform tooling.
 
 ---
 
-## Collaboration and document workplace
+# 2. Components Not Implemented Yet
 
-* *Nextcloud* → file storage, sharing, permissions, versioning
-* *Euro-Office Document Server* → online office editing and co-authoring
-* *Matrix + Element* → chat, rooms, secure communication
-
-This is the core “MS365 replacement layer”.
-
----
-
-## Email / calendar / tasks
-
-* *Postfix* → SMTP
-* *Dovecot* → IMAP
-* *SOGo* or equivalent → webmail, calendar, contacts
-* *CalDAV / CardDAV* → sync
-* *OpenProject* or equivalent → tasks/projects where needed
-
----
+The following components were part of the broader platform vision but are not currently implemented in this lab.
 
 ## ITSM
 
-* *iTop* → incident/request/problem/change/CMDB/service catalog as needed
+Future development:
 
-### Important operating rule
+* incident management
+* request management
+* problem management
+* change management
+* CMDB
+* service catalog
 
-* *No plugins*
-* Customers may configure iTop functionally
-* You control runtime, upgrades, and platform stability
+Candidate product:
 
----
+* iTop, or another ITSM tool selected after validation
 
-## Workflow and automation
+Operating rule:
 
-* *n8n* → integration glue, notifications, side workflows
-* *Camunda* → optional broader business-process orchestration
+* no customer-installed plugins
+* functional configuration is allowed
+* platform runtime, upgrades, and stability remain under operator control
 
-### Important rule
+## Chat and Video Conferencing
 
-* Not the core identity engine
-* Identity lifecycle stays in *midPoint*
-* Automation tools are supporting tools, not the source of truth
+Future development:
 
----
+* secure chat
+* rooms and channels
+* audio/video conferencing
+* identity-aware access through Keycloak
 
-# 2. Security and secrets stack
+Possible candidates:
 
-## Public TLS
+* Matrix and Element for chat
+* Jitsi or another conferencing stack for video meetings
 
-* *Let’s Encrypt*
-* DNS managed through *OVH*
-* Certificates exposed at the global edge
+These services are not part of the current implementation.
 
-## Internal TLS
+## Wiki and Knowledge Base
 
-* *Vault PKI*
-* Internal traffic encrypted between:
+Future development:
 
-  * global reverse proxy
-  * customer ingress
-  * internal services
+* internal wiki
+* customer documentation space
+* operational knowledge base
+* integration with Keycloak for authentication and authorization
 
-## Secrets
+The exact wiki product has not been selected yet.
 
-Preferred model:
+## Email, Calendar, and Tasks
 
-* *Global/operator Vault* for platform bootstrap and control-plane secrets
-* *Per-customer Vault* for customer secrets and portability
+Future development:
 
-This avoids sharing sensitive customer runtime secrets in one central Vault.
+* SMTP and IMAP mail service
+* webmail
+* calendar and contacts
+* CalDAV and CardDAV synchronization
+* task/project management where required
 
----
+Possible candidates:
 
-# 3. Reverse proxy and traffic model
-
-## Global edge
-
-One shared internet-facing reverse proxy layer, for example:
-
-* Traefik or Nginx
-
-Responsibilities:
-
-* public TLS
-* public entry
-* routing by hostname
-* forwarding to customer environments
-* rate limiting / basic protection
-
-## Per-customer ingress
-
-One reverse proxy / ingress per customer environment.
-
-Responsibilities:
-
-* tenant-local routing
-* internal TLS to services
-* separation of customer environments
-
-## Traffic flow
-
-Client
-→ public HTTPS at global edge
-→ internal HTTPS to customer ingress
-→ internal HTTPS to customer services
-
-So there is *no plaintext hop*.
+* Postfix
+* Dovecot
+* SOGo or equivalent
+* OpenProject or equivalent
 
 ---
 
-# 4. DNS and naming model
+# 3. Traffic and DNS Model
+
+## Reverse Proxy
+
+Implemented direction:
+
+* Traefik acts as the platform reverse proxy.
+* Services are exposed through internal hostnames such as `auth.internal`, `files.internal`, `office.internal`, `identity.internal`, `hr.internal`, and `passwords.internal`.
+* TLS is terminated and routed through the platform edge.
+
+Target traffic flow:
+
+```text
+Browser
+  -> HTTPS at platform edge
+  -> HTTPS to service route
+  -> application
+```
+
+The target model avoids plaintext service hops.
 
 ## Public DNS
 
-* Managed at *OVH*
-* No self-hosted public DNS initially
+Target direction:
 
-## Example public names
+* public DNS managed externally
+* public TLS certificates at the global edge
+* internal names used for service-to-service trust
 
-* auth.customer1.yourplatform.com
-* files.customer1.yourplatform.com
-* chat.customer1.yourplatform.com
-* itsm.customer1.yourplatform.com
+Example future public names:
 
-## Internal names
+* `auth.customer.example.com`
+* `files.customer.example.com`
+* `office.customer.example.com`
+* `passwords.customer.example.com`
 
-Used for internal service-to-service trust, for example:
+Future names for services not yet implemented:
 
-* customer1-ingress.internal.yourplatform
-* itop.customer1.internal.yourplatform
+* `meet.customer.example.com`
+* `wiki.customer.example.com`
+* `itsm.customer.example.com`
 
 ---
 
-# 5. Global vs customer split
+# 4. Global and Customer Split
 
-## Global control plane
+## Global Control Plane
 
-Contains only platform-wide operator functions:
+Target platform-wide responsibilities:
 
 * global reverse proxy
 * public DNS management
 * public certificate automation
-* global PKI root / trust authority
+* global PKI root and trust authority
 * operator/bootstrap secrets
-* provisioning / IaC engine
-* tenant inventory / source of truth
+* tenant inventory and source of truth
 * platform observability
 * backup orchestration
 * operator admin identity
 
-## Per-customer environment
+## Per-Customer Environment
 
-Contains customer-specific runtime:
+Target customer-specific runtime:
 
 * customer ingress
-* customer Vault
-* Keycloak-facing tenant config
+* customer Vault or customer-scoped secrets
+* Keycloak-facing tenant configuration
 * Nextcloud
-* Euro-Office
-* Matrix
-* iTop
-* email/calendar stack
+* Collabora
+* Vaultwarden
 * customer data
 * customer runtime secrets
 
-## Your own company
+Customer identity governance should be standardized:
 
-Your staff environment should be modeled as a normal *customer-like tenant*:
+* HR-derived organizations and entitlements are customer-specific data, but the governance pattern is platform-standard.
+* Administrative roles should be temporary, approved, auditable, and separated from daily user identities.
+* The privileged-account lifecycle should remain consistent across lab, tenant, and production environments: create on first approved need, disable when not entitled, re-enable on reapproval, and delete only with the primary identity lifecycle.
 
-* your own IAM for staff usage
-* your own collaboration apps
-* your own iTop
-* your own data
+Future customer services may include:
 
-But platform automation and operator functions stay global.
+* ITSM
+* chat
+* video conferencing
+* wiki
+* email/calendar/tasks
+
+The operator environment should remain separate from customer runtime environments. The operator company's own tools should be modeled as a normal tenant where possible.
 
 ---
 
-# 6. Deployment model
+# 5. Deployment Model
 
-## Principles
+Current lab direction:
 
-* Docker first
-* IaC from the beginning
-* Kubernetes later for industrialization
-* immutable deployments
-* standard settings everywhere
+* Docker-first deployment
+* service-level `docker-compose.yml` files
+* infrastructure and service configuration kept as code in this repository
+* Vault-managed secrets
+* internal TLS per service
+* Traefik routing
 
-## Early stage
+Infrastructure as Code principles:
 
-Can be run on:
+* all platform components should be reproducible from versioned configuration
+* service definitions, routing, PKI automation, identity bootstrap objects, and operational scripts belong in the repository
+* manual changes are acceptable during lab exploration only when they are later captured as code
+* customer environments should be created from standard templates, not hand-built snowflakes
 
-* one machine
-* one public IP
-* router forwarding 80/443 to the host
-* Docker networking internally
+Target industrialized direction:
 
-## Industrialized target
-
-* shared global edge
-* per-customer environments
+* infrastructure as code from the beginning
 * standardized deployment templates
+* immutable or repeatable deployments
+* k3s for future orchestration and deployment
 * optional dedicated resources per customer
 
 ---
 
-# 7. Operating model
+# 6. Operating Model
 
-## Customization policy
+Customization policy:
 
-* Customers can configure application behavior
-* Customers cannot install plugins
-* Customers cannot modify runtime or code
+* customers can configure application behavior
+* customers cannot install plugins
+* customers cannot modify runtime or code
+* platform updates must remain predictable
 
-### Allowed
+Allowed examples:
 
-* groups, roles, workflows, categories, fields, data, business config
+* groups
+* roles
+* workflows
+* categories
+* fields
+* business configuration
+* customer-owned data
 
-### Not allowed
+Not allowed:
 
 * plugins
 * arbitrary code
-* runtime changes
+* unmanaged runtime changes
 * platform-level modifications
 
-This keeps updates predictable and maintenance low.
+The main maintenance risk is customer divergence. A strict standard stack and a no-plugin policy keep the platform operationally manageable.
 
 ---
 
-# 8. Maintenance model
+# 7. Maintenance Model
 
-Once standardized and automated, maintenance is mostly:
+Expected recurring operations:
 
 * release validation
 * patch rollout
-* cert renewals
+* certificate renewal
 * secret rotation
 * restore tests
 * capacity review
 * security hygiene
 * incident handling
 
-The main effort driver is not certificates. It is *customer divergence*.
-
-With a strict standard stack and no plugins, the platform remains operationally manageable.
+Certificates and secrets should be automated as much as possible. Long-term platform cost is driven more by divergence and exceptions than by the base services themselves.
 
 ---
 
-# 9. Strategic product definition
+# 8. Strategic Product Definition
 
-This stack is best positioned as:
+Best positioning:
 
-> *A sovereign managed digital workplace platform*
+> A sovereign managed digital workplace platform.
 
 Not:
 
-* “cheap Microsoft 365”
-* “mass-market SaaS”
+* cheap Microsoft 365
+* mass-market SaaS
+* unlimited customization platform
 
 Best-fit customers:
 
@@ -307,61 +338,37 @@ Best-fit customers:
 
 Poor fit:
 
-* very small SMEs buying on price only
-* startups wanting maximum speed and AI polish
-* customers demanding unlimited customization
+* very small SMEs buying only on price
+* startups that need maximum speed and consumer-style polish
+* customers demanding unrestricted customization
 
 ---
 
-# 10. Final architecture in one line
+# 9. Architecture Summary
 
-*HR → midPoint → Keycloak → apps*, with
-*Nextcloud + Euro-Office + Matrix + email/calendar + iTop*, protected by
-*global edge TLS + Vault-based internal PKI*, deployed through
-*IaC + Docker/Kubernetes*, with
-*global control plane + per-customer runtime isolation*.
----
-
-## 🔐 Sicurezza
-
-- TLS ovunque (anche interno)
-- Certificati generati dinamicamente
-- Nessuna password hardcoded nei container
-- Vault Agent per injection dei segreti
-
----
-
-## 👤 Identity
-
-- Keycloak come Identity Provider
-- Modello:
-  - utenti
-  - gruppi
-  - ruoli (RBAC)
-- Admin model:
-  - `breakglass-admin`
-  - gruppo `admins`
-
-## 🧠 Architettura target
+Current implemented lab:
 
 ```text
-Browser
-   ↓
-Traefik (TLS)
-   ↓
-OIDC (Keycloak)
-   ↓
-Servizi (Nextcloud, iTop, ...)
+OrangeHRM -> midPoint -> Keycloak -> Nextcloud / Collabora / Vaultwarden
+```
 
+Protected by:
 
-📌 Note
-Questo lab privilegia comprensione e architettura rispetto alla semplicità
-Alcuni compromessi sono accettati (es. dev security)
-Il modello finale sarà portato su Kubernetes
+```text
+Traefik + Vault-managed secrets + internal TLS + Docker Compose + repository-managed IaC
+```
 
-🚀 Visione finale
-Una piattaforma:
-Zero Trust
-Identity-driven
-Automatizzata
-Portabile su cloud o on-prem
+Future developments:
+
+End user services:
+* ITSM
+* chat
+* video conferencing
+* wiki
+* email, calendar, and tasks
+* broader process automation if justified
+
+Operations:
+* backup
+* monitoring
+* orchestration and deployment via k3s
