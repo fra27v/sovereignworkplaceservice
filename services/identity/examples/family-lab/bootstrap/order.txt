@@ -3,6 +3,7 @@ patches/040-system-configuration-secret-provider.xml
 resources/010-idp-keycloak.xml
 
 roles/150-idp-admin-account.xml
+roles/151-idp-admin-account-enabled.xml
 
 roles/060-idp-managed-group-org-core.xml
 roles/061-idp-managed-group-org-children.xml

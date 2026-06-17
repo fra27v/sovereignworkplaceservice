@@ -1,11 +1,11 @@
 <role
     xmlns="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
     xmlns:c="http://midpoint.evolveum.com/xml/ns/public/common/common-3"
-    oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000150">
+    oid="bbbbbbbb-bbbb-bbbb-bbbb-000000000151">
 
-    <name>IDP_ADMIN_ACCOUNT</name>
-    <displayName>IdP Admin Account</displayName>
-    <description>Creates and keeps the privileged Keycloak admin account adm_USER disabled by default.</description>
+    <name>IDP_ADMIN_ACCOUNT_ENABLED</name>
+    <displayName>IdP Admin Account Enabled</displayName>
+    <description>Temporarily enables the privileged Keycloak admin account adm_USER while admin rights are active.</description>
 
     <inducement>
         <construction>

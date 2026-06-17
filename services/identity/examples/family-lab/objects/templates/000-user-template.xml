@@ -63,4 +63,23 @@
       </target>
   </mapping>
 
+  <mapping>
+      <name>all-users-get-idp-admin-account</name>
+      <strength>strong</strength>
+      <expression>
+          <assignmentTargetSearch>
+              <targetType>RoleType</targetType>
+              <filter>
+                  <q:equal>
+                      <q:path>name</q:path>
+                      <q:value>IDP_ADMIN_ACCOUNT</q:value>
+                  </q:equal>
+              </filter>
+          </assignmentTargetSearch>
+      </expression>
+      <target>
+          <path>assignment</path>
+      </target>
+  </mapping>
+
 </objectTemplate>

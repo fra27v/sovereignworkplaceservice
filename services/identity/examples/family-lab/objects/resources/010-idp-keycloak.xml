@@ -663,11 +663,15 @@
 
                                     def userStatus = focus?.activation?.administrativeStatus
 
-                                    if (userStatus == null) {
+                                    if (userStatus == ActivationStatusType.DISABLED || userStatus == ActivationStatusType.ARCHIVED) {
                                         return ActivationStatusType.DISABLED
                                     }
 
-                                    return userStatus
+                                    def hasAdminEnablementRole = focus?.roleMembershipRef?.any {
+                                        it?.oid == 'bbbbbbbb-bbbb-bbbb-bbbb-000000000151'
+                                    }
+
+                                    return hasAdminEnablementRole ? ActivationStatusType.ENABLED : ActivationStatusType.DISABLED
                                 </code>
                             </script>
                         </expression>
