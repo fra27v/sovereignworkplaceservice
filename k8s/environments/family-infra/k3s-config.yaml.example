@@ -1,8 +1,16 @@
-# Example k3s configuration for the family infrastructure environment.
-# Copy locally and adjust outside version control before use.
+# Example k3s server configuration for the family-infra environment.
+# Copy this file to /etc/rancher/k3s/config.yaml on the target node.
+# Do not commit the real local /etc/rancher/k3s/config.yaml file.
 
 cluster-init: true
+node-name: family-infra
+
+secrets-encryption: true
 write-kubeconfig-mode: "0600"
+
 disable:
-  - servicelb
   - traefik
+  - servicelb
+
+tls-san:
+  - family-infra.internal

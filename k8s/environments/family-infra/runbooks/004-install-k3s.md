@@ -1,0 +1,59 @@
+# Install k3s for family-infra
+
+This runbook installs and verifies the k3s baseline for the active
+`family-infra` operational environment.
+
+## Scope
+
+This runbook covers only the k3s baseline.
+
+Out of scope for now:
+
+- Traefik installation.
+- Application migration.
+- OpenBao deployment.
+- Keycloak, midPoint, Nextcloud, HR, Vaultwarden, and Collabora deployment.
+
+## Preconditions
+
+- Ubuntu Server is installed on the target node.
+- SSH key login is working.
+- SSH password login is disabled.
+- The repository is cloned on the target node.
+- DNS is ready: `family-infra.internal` points to the node.
+- Required ports have been checked, including `80`, `443`, and `6443`.
+
+## Install
+
+Run these commands on the target node:
+
+```bash
+cd ~/src/sovereignworkplaceservice
+git pull --ff-only
+./k8s/environments/family-infra/scripts/setup-family-infra.sh prepare
+./k8s/environments/family-infra/scripts/setup-family-infra.sh install
+./k8s/environments/family-infra/scripts/setup-family-infra.sh verify
+```
+
+## Recovery Notes
+
+The k3s config file is:
+
+```text
+/etc/rancher/k3s/config.yaml
+```
+
+The kubeconfig file is:
+
+```text
+/etc/rancher/k3s/k3s.yaml
+```
+
+Follow k3s logs with:
+
+```bash
+sudo journalctl -u k3s -f
+```
+
+Do not commit generated local files, kubeconfig files, local node state, tokens,
+or secrets.
