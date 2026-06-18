@@ -34,9 +34,32 @@ fi
 section "Pods"
 k3s kubectl get pods -A -o wide
 
-if k3s kubectl get all -A --no-headers 2>/dev/null | awk '{ print tolower($0) }' | grep -q 'traefik'; then
-  fail "Traefik resources exist, but embedded k3s Traefik must be disabled."
+section "Embedded k3s Traefik"
+embedded_traefik_resources=""
+
+kube_system_traefik_pods="$(k3s kubectl get pods -n kube-system --no-headers 2>/dev/null | awk 'tolower($1) ~ /traefik/ { print "pod/" $1 }')"
+if [[ -n "${kube_system_traefik_pods}" ]]; then
+  embedded_traefik_resources+="${kube_system_traefik_pods}"$'\n'
 fi
+
+kube_system_traefik_services="$(k3s kubectl get services -n kube-system --no-headers 2>/dev/null | awk 'tolower($1) ~ /traefik/ { print "service/" $1 }')"
+if [[ -n "${kube_system_traefik_services}" ]]; then
+  embedded_traefik_resources+="${kube_system_traefik_services}"$'\n'
+fi
+
+if k3s kubectl get crd helmcharts.helm.cattle.io >/dev/null 2>&1; then
+  kube_system_traefik_helmcharts="$(k3s kubectl get helmchart.helm.cattle.io -n kube-system traefik --ignore-not-found -o name 2>/dev/null)"
+  if [[ -n "${kube_system_traefik_helmcharts}" ]]; then
+    embedded_traefik_resources+="${kube_system_traefik_helmcharts}"$'\n'
+  fi
+fi
+
+if [[ -n "${embedded_traefik_resources}" ]]; then
+  echo "${embedded_traefik_resources}" >&2
+  fail "Embedded k3s Traefik resources exist in kube-system, but embedded k3s Traefik must be disabled."
+fi
+
+echo "embedded k3s Traefik is absent"
 
 section "Secrets encryption"
 secrets_encryption_status="$(k3s secrets-encrypt status 2>&1)"
