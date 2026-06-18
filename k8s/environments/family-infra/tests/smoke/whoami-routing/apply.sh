@@ -22,4 +22,4 @@ command -v kubectl >/dev/null 2>&1 || fail "kubectl is not installed."
 
 export KUBECONFIG="${kubeconfig}"
 
-kubectl apply -k "${smoke_test_dir}"
+kubectl apply --validate=false -k "${smoke_test_dir}"
