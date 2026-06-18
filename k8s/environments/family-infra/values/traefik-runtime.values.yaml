@@ -1,0 +1,15 @@
+deployment:
+  replicas: 1
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+service:
+  enabled: false
+
+ports:
+  web:
+    hostPort: 80
+  websecure:
+    hostPort: 443
