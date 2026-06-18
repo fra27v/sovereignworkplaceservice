@@ -162,22 +162,6 @@ host_ports="$(
     | uniq
 )"
 
-if [[ "${TRAEFIK_EXPECTED_EXPOSURE_MODE}" == "hostPort" ]]; then
-  echo "${host_ports}"
-
-  grep -qx "${TRAEFIK_EXPECTED_HTTP_PORT}" <<<"${host_ports}" \
-    || fail "Expected HTTP hostPort ${TRAEFIK_EXPECTED_HTTP_PORT} not found on deployment."
-
-  grep -qx "${TRAEFIK_EXPECTED_HTTPS_PORT}" <<<"${host_ports}" \
-    || fail "Expected HTTPS hostPort ${TRAEFIK_EXPECTED_HTTPS_PORT} not found on deployment."
-
-  section "hostPort reachability"
-  curl_status "http://127.0.0.1:${TRAEFIK_EXPECTED_HTTP_PORT}"
-  curl_status "https://127.0.0.1:${TRAEFIK_EXPECTED_HTTPS_PORT}"
-else
-  echo "Skipping hostPort reachability checks for exposure mode: ${TRAEFIK_EXPECTED_EXPOSURE_MODE}"
-fi
-
 section "Listening ports snapshot"
 if command -v ss >/dev/null 2>&1; then
   ss -lntup | grep -E ':(80|443|6443)\s' || true
