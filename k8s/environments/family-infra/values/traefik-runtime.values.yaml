@@ -6,6 +6,10 @@
 deployment:
   replicas: 1
 
+updateStrategy:
+  type: Recreate
+  rollingUpdate: null
+
 ingressClass:
   enabled: true
   isDefaultClass: true
