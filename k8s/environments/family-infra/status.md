@@ -1,21 +1,21 @@
-# family-infra Status
-
-## k3s baseline
+## Runtime Traefik
 
 Status: installed and verified  
 Date: 2026-06-18  
-Node: family-infra  
-Node IP: 192.168.1.34  
-DNS: family-infra.internal  
-k3s version: v1.35.5+k3s1  
+Release: traefik-family-infra  
+Namespace: ingress-family-infra  
+IngressClass: traefik-family-infra  
 
 Verified:
-- node Ready
-- CoreDNS Running
-- local-path-provisioner Running
-- metrics-server Running
-- secrets encryption Enabled
-- embedded Traefik absent
-- ServiceLB disabled
-- kubeconfig mode 0600
-- only port 6443 listening before Traefik
+- Traefik pod Running
+- Traefik deployment successfully rolled out
+- no LoadBalancer Service created
+- HTTP route reachable through hostPort 80
+- HTTPS endpoint reachable through hostPort 443
+- whoami routing smoke test passed
+
+Smoke test:
+- namespace: smoke-whoami
+- host: whoami.internal
+- ingress class: traefik-family-infra
+- response includes Hostname and Traefik forwarded headers
