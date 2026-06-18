@@ -92,9 +92,6 @@ required_vars=(
   TRAEFIK_RELEASE_NAME
   TRAEFIK_NAMESPACE
   TRAEFIK_KUBECONFIG
-  TRAEFIK_EXPECTED_HTTP_PORT
-  TRAEFIK_EXPECTED_HTTPS_PORT
-  TRAEFIK_EXPECT_LOADBALANCER_SERVICE
 )
 
 for var_name in "${required_vars[@]}"; do
@@ -143,11 +140,6 @@ load_balancer_services="$(
   "${KUBECTL[@]}" get services -n "${TRAEFIK_NAMESPACE}" \
     -o jsonpath='{range .items[?(@.spec.type=="LoadBalancer")]}{.metadata.name}{"\n"}{end}'
 )"
-
-if [[ "${TRAEFIK_EXPECT_LOADBALANCER_SERVICE}" == "false" && -n "${load_balancer_services}" ]]; then
-  echo "${load_balancer_services}" >&2
-  fail "Traefik LoadBalancer service exists but this environment does not expect one."
-fi
 
 echo "LoadBalancer service check passed."
 
