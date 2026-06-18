@@ -1,0 +1,18 @@
+# Example operator-plane configuration only.
+# Replace all values locally before use.
+# Do not commit real secrets, seal keys, or tokens.
+# The seal key file must never be committed.
+# The transit token must never be committed.
+# Apps use Tenant OpenBao, not Global OpenBao.
+
+operator_plane_name: operator-plane
+environment: vps-family-control
+public_hostname: operator.example.test
+contact_email: admin@example.test
+storage_class: local-path
+
+global_openbao:
+  external_address: https://openbao-operator.example.test
+  seal_key_host_path: /srv/sovereignworkplace/operator-plane/openbao/seal.key
+  audit_log_host_path: /srv/sovereignworkplace/operator-plane/openbao/audit
+  storage_host_path: /srv/sovereignworkplace/operator-plane/openbao/storage
