@@ -44,7 +44,7 @@ case "${command_name}" in
     "${script_dir}/verify-k3s.sh"
     ;;
   all)
-    "${script_dir}/prepare-k3s-config.sh" "$@"
+    "${script_dir}/prepare-k3s-config.sh" --force "$@"
     "${script_dir}/install-k3s.sh"
     "${script_dir}/verify-k3s.sh"
     ;;
