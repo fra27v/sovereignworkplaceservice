@@ -15,8 +15,8 @@ if [[ "${EUID}" -ne 0 ]]; then
 fi
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-repo_root="$(cd -- "${script_dir}/../../../.." && pwd)"
-smoke_test_dir="${repo_root}/k8s/environments/family-infra/smoke-tests/whoami"
+repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
+smoke_test_dir="${script_dir}/manifests"
 kubeconfig="/etc/rancher/k3s/k3s.yaml"
 namespace="smoke-whoami"
 deployment="whoami"

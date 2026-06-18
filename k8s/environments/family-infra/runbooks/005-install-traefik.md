@@ -44,20 +44,20 @@ sudo ./k8s/platform/components/traefik/scripts/verify.sh \
 Apply the versioned whoami routing smoke test:
 
 ```bash
-sudo ./k8s/environments/family-infra/scripts/apply-whoami-smoke-test.sh
+sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/apply.sh
 ```
 
 Verify that Traefik routes `whoami.internal` through the HTTP `web`
 entrypoint:
 
 ```bash
-sudo ./k8s/environments/family-infra/scripts/verify-whoami-smoke-test.sh
+sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/verify.sh
 ```
 
 Delete the smoke test when finished:
 
 ```bash
-sudo ./k8s/environments/family-infra/scripts/delete-whoami-smoke-test.sh
+sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/delete.sh
 ```
 
 ## Rollback

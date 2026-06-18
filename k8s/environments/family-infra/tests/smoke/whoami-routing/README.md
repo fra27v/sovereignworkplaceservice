@@ -1,4 +1,4 @@
-# whoami Traefik smoke test
+# whoami routing smoke test
 
 This directory contains a versioned routing smoke test for the `family-infra`
 runtime Traefik instance.
@@ -15,17 +15,17 @@ secrets, TLS certificates, tokens, or credentials.
 Apply the smoke test:
 
 ```bash
-sudo ./k8s/environments/family-infra/scripts/apply-whoami-smoke-test.sh
+sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/apply.sh
 ```
 
 Verify routing:
 
 ```bash
-sudo ./k8s/environments/family-infra/scripts/verify-whoami-smoke-test.sh
+sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/verify.sh
 ```
 
 Delete the smoke test:
 
 ```bash
-sudo ./k8s/environments/family-infra/scripts/delete-whoami-smoke-test.sh
+sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/delete.sh
 ```
