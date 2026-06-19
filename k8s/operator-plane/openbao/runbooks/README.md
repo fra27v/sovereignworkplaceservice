@@ -10,3 +10,4 @@ Current Global OpenBao runbooks:
 2. `002-initialize-global-openbao.md`
 3. `003-global-openbao-critical-material-custody.md`
 4. `004-enable-global-openbao-audit.md`
+5. `005-retire-global-openbao-bootstrap-material.md`

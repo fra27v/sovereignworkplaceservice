@@ -37,6 +37,22 @@ k8s/operator-plane/environments/vps-family-control/openbao/scripts/install-openb
 
 The script performs a Helm upgrade. It does not initialize OpenBao and does not print secrets.
 
+## Restart For OnDelete StatefulSet Updates
+
+The OpenBao StatefulSet uses `updateStrategy: OnDelete`, so `kubectl rollout status` is not valid for this release. Helm config changes may require deleting the pod manually so Kubernetes recreates it from the updated StatefulSet template.
+
+After OpenBao is initialized and auto-unseal has been verified, deleting `openbao-global-0` is safe because the PVCs persist and the static seal is configured.
+
+Use this restart and wait pattern after applying Helm config changes:
+
+```bash
+kubectl -n openbao-operator delete pod openbao-global-0
+kubectl -n openbao-operator wait --for=condition=Ready pod/openbao-global-0 --timeout=180s
+kubectl -n openbao-operator exec openbao-global-0 -- bao status -tls-skip-verify
+```
+
+Always verify `bao status -tls-skip-verify` after restart before continuing.
+
 ## Verify Audit Is Enabled
 
 After the upgraded pod is running and unsealed, verify audit registration:
@@ -57,7 +73,12 @@ It passes the token to the in-pod `bao audit list` command without printing it. 
 file/
 ```
 
-The verification script also checks that `/openbao/audit/audit.log` exists. It does not print or inspect audit log contents.
+The verified audit success state is:
+
+- `bao audit list` shows `file/`.
+- `/openbao/audit/audit.log` exists.
+
+The verification script checks both conditions. It does not print or inspect audit log contents.
 
 Do not inspect audit log contents as part of this runbook. Audit log contents must not be printed, pasted into chat, attached to tickets, or committed to Git.
 
