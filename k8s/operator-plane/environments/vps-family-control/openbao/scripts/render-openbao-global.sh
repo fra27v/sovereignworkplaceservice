@@ -39,6 +39,8 @@ grep -n "kind: StatefulSet" "${output_file}"
 grep -n "hostPath:" "${output_file}"
 grep -n "openbao-static-seal" "${output_file}"
 grep -n "openbao-local-tls" "${output_file}"
+grep -Fn 'value: "https://127.0.0.1:8200"' "${output_file}"
+grep -Fn 'value: "https://$(POD_IP):8200"' "${output_file}"
 
 echo "Expected absent resources:"
 if grep -n "kind: Ingress" "${output_file}"; then
@@ -53,4 +55,18 @@ if grep -n "kind: MutatingWebhookConfiguration" "${output_file}"; then
   exit 1
 else
   echo "OK: no MutatingWebhookConfiguration rendered."
+fi
+
+if grep -Fn 'value: "http://127.0.0.1:8200"' "${output_file}"; then
+  echo "ERROR: HTTP localhost OpenBao address rendered unexpectedly." >&2
+  exit 1
+else
+  echo "OK: no HTTP localhost OpenBao address rendered."
+fi
+
+if grep -Fn 'value: "http://$(POD_IP):8200"' "${output_file}"; then
+  echo "ERROR: HTTP pod OpenBao address rendered unexpectedly." >&2
+  exit 1
+else
+  echo "OK: no HTTP pod OpenBao address rendered."
 fi
