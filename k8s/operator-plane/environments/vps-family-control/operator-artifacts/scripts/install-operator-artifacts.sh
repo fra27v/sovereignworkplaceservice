@@ -69,6 +69,7 @@ required_vars=(
   OPERATOR_ARTIFACTS_PUBLIC_DIR
   OPERATOR_ARTIFACTS_PRIVATE_DIR
   OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME
+  OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME
 )
 
 for var_name in "${required_vars[@]}"; do
@@ -95,6 +96,9 @@ kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACT
 kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
   -o custom-columns='NAME:.metadata.name,TYPE:.spec.type,PORT:.spec.ports[0].port' \
   --no-headers
+kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" \
+  -o custom-columns='NAME:.metadata.name' \
+  --no-headers
 kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth" \
   -o custom-columns='NAME:.metadata.name' \
   --no-headers
@@ -104,6 +108,7 @@ kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFA
 
 deployment_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
 service_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
+ingressroute_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
 pods_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get pods \
   -l "app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
   -o json)"
@@ -119,6 +124,13 @@ echo "Container http port: ${container_port}"
 service_port="$(printf '%s\n' "${service_json}" | jq -r '.spec.ports[]? | select(.name == "http") | .port')"
 [[ "${service_port}" = "80" ]] || fail "Unexpected Service http port: ${service_port}"
 echo "Service http port: ${service_port}"
+
+basicauth_middleware_name="${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth"
+first_middleware="$(printf '%s\n' "${ingressroute_json}" | jq -r '.spec.routes[0].middlewares[0].name // ""')"
+second_middleware="$(printf '%s\n' "${ingressroute_json}" | jq -r '.spec.routes[0].middlewares[1].name // ""')"
+[[ "${first_middleware}" = "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" ]] || fail "IngressRoute does not apply IPAllowList before BasicAuth."
+[[ "${second_middleware}" = "${basicauth_middleware_name}" ]] || fail "IngressRoute does not apply BasicAuth after IPAllowList."
+echo "IngressRoute middleware order: IPAllowList before BasicAuth."
 
 deployment_available="$(printf '%s\n' "${deployment_json}" | jq -r 'any(.status.conditions[]?; .type == "Available" and .status == "True")')"
 [[ "${deployment_available}" = "true" ]] || fail "Deployment is not Available."

@@ -50,6 +50,7 @@ required_vars=(
   OPERATOR_ARTIFACTS_TENANT_NAME
   OPERATOR_ARTIFACTS_AUTH_USERNAME
   OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME
+  OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME
 )
 
 for var_name in "${required_vars[@]}"; do
@@ -62,6 +63,7 @@ echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}"
 
 deployment_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
 service_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
+ingressroute_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
 pods_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get pods \
   -l "app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
   -o json)"
@@ -81,6 +83,13 @@ echo "Service type: ${service_type}"
 service_port="$(printf '%s\n' "${service_json}" | jq -r '.spec.ports[]? | select(.name == "http") | .port')"
 [[ "${service_port}" = "80" ]] || fail "Unexpected Service http port: ${service_port}"
 echo "Service http port: ${service_port}"
+
+basicauth_middleware_name="${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth"
+first_middleware="$(printf '%s\n' "${ingressroute_json}" | jq -r '.spec.routes[0].middlewares[0].name // ""')"
+second_middleware="$(printf '%s\n' "${ingressroute_json}" | jq -r '.spec.routes[0].middlewares[1].name // ""')"
+[[ "${first_middleware}" = "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" ]] || fail "IngressRoute does not apply IPAllowList before BasicAuth."
+[[ "${second_middleware}" = "${basicauth_middleware_name}" ]] || fail "IngressRoute does not apply BasicAuth after IPAllowList."
+echo "IngressRoute middleware order: IPAllowList before BasicAuth."
 
 deployment_available="$(printf '%s\n' "${deployment_json}" | jq -r 'any(.status.conditions[]?; .type == "Available" and .status == "True")')"
 [[ "${deployment_available}" = "true" ]] || fail "Deployment is not Available."
@@ -114,6 +123,16 @@ bad_pods="$(printf '%s\n' "${pods_json}" | jq -r '
   | .name
 ')"
 [[ -z "${bad_pods}" ]] || fail "One or more operator-artifacts pods are not Running, Error, Pending, CrashLoopBackOff, or not Ready."
+
+kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" \
+  -o custom-columns='NAME:.metadata.name' \
+  --no-headers
+echo "IPAllowList Middleware exists."
+
+kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${basicauth_middleware_name}" \
+  -o custom-columns='NAME:.metadata.name' \
+  --no-headers
+echo "BasicAuth Middleware exists."
 
 kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
   -o custom-columns='NAME:.metadata.name' \
@@ -191,6 +210,11 @@ echo "Private artifact directory is not mounted."
 echo "operator-artifacts verification completed."
 echo
 echo "Safe curl examples, using placeholders only:"
+echo "  From an allowed IP without credentials, expect HTTP 401:"
+echo "  curl -o /dev/null -s -w '%{http_code}\n' https://operator-artifacts.<domain>/tenants/${OPERATOR_ARTIFACTS_TENANT_NAME}/README.txt"
+echo "  From a non-allowed IP, expect HTTP 403:"
+echo "  curl -o /dev/null -s -w '%{http_code}\n' https://operator-artifacts.<domain>/tenants/${OPERATOR_ARTIFACTS_TENANT_NAME}/README.txt"
+echo "  From an allowed IP with valid BasicAuth, expect HTTP 200:"
 echo "  curl -fsS -u '${OPERATOR_ARTIFACTS_AUTH_USERNAME}:<token>' https://operator-artifacts.<domain>/tenants/${OPERATOR_ARTIFACTS_TENANT_NAME}/README.txt"
 echo "  curl -fsS -u '${OPERATOR_ARTIFACTS_AUTH_USERNAME}:<token>' https://operator-artifacts.<domain>/tenants/${OPERATOR_ARTIFACTS_TENANT_NAME}/README.txt.sha256"
 echo

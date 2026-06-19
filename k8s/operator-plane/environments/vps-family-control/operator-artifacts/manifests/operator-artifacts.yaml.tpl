@@ -90,6 +90,16 @@ spec:
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
+  name: ${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}
+  namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}
+spec:
+  ipAllowList:
+    sourceRange:
+${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML}
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
   name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth
   namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}
 spec:
@@ -108,6 +118,7 @@ spec:
     - match: Host(`${OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME}`)
       kind: Rule
       middlewares:
+        - name: ${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}
         - name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth
       services:
         - name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}

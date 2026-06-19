@@ -51,6 +51,30 @@ yaml_escape_double_quoted() {
   sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/&/\\\&/g'
 }
 
+yaml_quote_escape() {
+  sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+build_allowed_source_ranges_yaml() {
+  local compact_ranges="$1"
+  local range
+  local escaped_range
+
+  IFS=',' read -r -a source_ranges <<< "${compact_ranges}"
+  source_range_count="${#source_ranges[@]}"
+  [[ "${source_range_count}" -gt 0 ]] || fail "OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES must contain at least one range."
+
+  OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML=""
+  for range in "${source_ranges[@]}"; do
+    [[ -n "${range}" ]] || fail "OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES contains an empty range."
+    [[ "${range}" != "<set-me>" ]] || fail "OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES contains a placeholder range."
+    escaped_range="$(printf '%s' "${range}" | yaml_quote_escape)"
+    OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML="${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML}      - \"${escaped_range}\"
+"
+  done
+  OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML="${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML%$'\n'}"
+}
+
 render_template() {
   sed \
     -e "s|\${OPERATOR_ARTIFACTS_NAMESPACE}|${OPERATOR_ARTIFACTS_NAMESPACE}|g" \
@@ -59,8 +83,13 @@ render_template() {
     -e "s|\${OPERATOR_ARTIFACTS_PUBLIC_DIR}|${OPERATOR_ARTIFACTS_PUBLIC_DIR}|g" \
     -e "s|\${OPERATOR_ARTIFACTS_TLS_CERT_RESOLVER}|${OPERATOR_ARTIFACTS_TLS_CERT_RESOLVER}|g" \
     -e "s|\${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}|${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}|g" \
+    -e "s|\${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}|${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}|g" \
     -e "s|\${OPERATOR_ARTIFACTS_BASICAUTH_USERS_PLACEHOLDER}|${OPERATOR_ARTIFACTS_BASICAUTH_USERS}|g" \
-    "${template_file}"
+    "${template_file}" \
+    | awk -v ranges="${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML}" '
+      $0 == "${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML}" { print ranges; next }
+      { print }
+    '
 }
 
 while [[ $# -gt 0 ]]; do
@@ -110,6 +139,8 @@ required_vars=(
   OPERATOR_ARTIFACTS_AUTH_USERNAME
   OPERATOR_ARTIFACTS_TLS_CERT_RESOLVER
   OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME
+  OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME
+  OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
 )
 
 for var_name in "${required_vars[@]}"; do
@@ -120,6 +151,10 @@ htpasswd_file="${OPERATOR_ARTIFACTS_PRIVATE_DIR}/tokens/${OPERATOR_ARTIFACTS_TEN
 [[ -s "${htpasswd_file}" ]] || fail "Missing or empty htpasswd file: ${htpasswd_file}"
 
 OPERATOR_ARTIFACTS_BASICAUTH_USERS="$(yaml_escape_double_quoted < "${htpasswd_file}")"
+compact_allowed_source_ranges="${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES//[[:space:]]/}"
+[[ -n "${compact_allowed_source_ranges}" ]] || fail "OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES must not be empty."
+[[ "${compact_allowed_source_ranges}" != *"<set-me>"* ]] || fail "OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES contains a placeholder value."
+build_allowed_source_ranges_yaml "${compact_allowed_source_ranges}"
 
 if [[ "${explicit_output}" = "true" ]]; then
   output_file="${requested_output_file}"
@@ -138,6 +173,7 @@ echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}"
 echo "Public hostname: configured"
 echo "Public directory: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}"
 echo "BasicAuth Secret name: ${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}"
+echo "IP allowlist: configured with ${source_range_count} source ranges"
 echo "The htpasswd contents were not printed."
 echo "Rendered Secret material was not printed."
 echo "No manifest was applied."

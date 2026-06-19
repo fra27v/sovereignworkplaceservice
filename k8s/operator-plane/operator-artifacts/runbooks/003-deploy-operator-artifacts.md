@@ -66,6 +66,43 @@ The private artifact directory must never be mounted into the artifact server
 pod. The temporary rendered manifest is created with `0600` permissions and is
 deleted after install.
 
+## IP Allowlist And BasicAuth
+
+Access is restricted by Traefik `IPAllowList` before BasicAuth. The IngressRoute
+middleware order must be:
+
+1. `IPAllowList`
+2. `BasicAuth`
+
+The operator must set the allowed source ranges in the real
+`operator-artifacts.env` file:
+
+```bash
+OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES="127.0.0.1/32,::1/128,<home-public-ip>/32"
+```
+
+`<home-public-ip>` must be the public home IP address as seen by the internet,
+not a LAN address such as an RFC1918 private address. Do not commit or paste the
+real public IP.
+
+If the home public IP changes, update `operator-artifacts.env`, reinstall the
+resources, and run the verification script again.
+
+Localhost testing can target the VPS locally while preserving the HTTPS host:
+
+```bash
+curl --resolve operator-artifacts.<domain>:443:127.0.0.1 https://operator-artifacts.<domain>/tenants/family-infra-01/README.txt
+```
+
+Expected access behavior:
+
+- allowed IP without credentials: HTTP `401`
+- non-allowed IP: HTTP `403`
+- allowed IP with valid BasicAuth: HTTP `200`
+
+Use `<token>` placeholders in documentation. Do not paste real BasicAuth
+credentials or curl commands containing real credentials.
+
 If the rollout times out, use only safe diagnostics:
 
 ```bash
@@ -127,6 +164,8 @@ The verification script checks:
 - the pod is `Running`
 - the Service is `ClusterIP`
 - the IngressRoute exists
+- the IPAllowList Middleware exists
+- the IngressRoute applies IPAllowList before BasicAuth
 - the BasicAuth Secret exists without printing Secret data
 - the private artifact directory is not mounted
 - the public artifact hostPath is mounted read-only
