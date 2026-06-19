@@ -42,6 +42,14 @@ spec:
             - name: public-artifacts
               mountPath: /usr/share/nginx/html
               readOnly: true
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: nginx-run
+              mountPath: /var/run
+            - name: nginx-tmp
+              mountPath: /tmp
+            - name: nginx-log
+              mountPath: /var/log/nginx
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -53,6 +61,14 @@ spec:
           hostPath:
             path: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}
             type: Directory
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-tmp
+          emptyDir: {}
+        - name: nginx-log
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

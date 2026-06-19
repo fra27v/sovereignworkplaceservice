@@ -65,6 +65,24 @@ The private artifact directory must never be mounted into the artifact server
 pod. The temporary rendered manifest is created with `0600` permissions and is
 deleted after install.
 
+## Nginx Read-Only Root Filesystem
+
+The `operator-artifacts` Deployment keeps `readOnlyRootFilesystem: true`.
+Artifact content remains mounted read-only from the public artifact hostPath at
+`/usr/share/nginx/html`, and the private artifact directory remains unmounted.
+
+If the nginx pod enters `CrashLoopBackOff` after enabling the read-only root
+filesystem, check whether nginx is missing writable runtime directories. The
+manifest provides writable `emptyDir` mounts for:
+
+- `/var/cache/nginx`
+- `/var/run`
+- `/tmp`
+- `/var/log/nginx`
+
+These writable mounts are runtime scratch space only. They do not contain
+artifact content, tenant tokens, htpasswd files, or private artifact material.
+
 ## Verify
 
 Run the verification script:
@@ -80,6 +98,8 @@ The verification script checks:
 - the IngressRoute exists
 - the BasicAuth Secret exists without printing Secret data
 - the private artifact directory is not mounted
+- the public artifact hostPath is mounted read-only
+- nginx writable runtime paths are backed by `emptyDir`
 
 ## Authenticated Dummy Artifact Test
 

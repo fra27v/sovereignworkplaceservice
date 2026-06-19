@@ -97,6 +97,16 @@ echo "  expected key users present: ${has_users_key}"
 
 deployment_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
 host_paths="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.volumes[]? | select(.hostPath != null) | .hostPath.path')"
+runtime_empty_dir_mounts="$(printf '%s\n' "${deployment_json}" | jq -r '
+  .spec.template.spec as $pod
+  | $pod.containers[]?
+  | select(.name == "nginx")
+  | .volumeMounts[]?
+  | . as $mount
+  | select($mount.mountPath == "/var/cache/nginx" or $mount.mountPath == "/var/run" or $mount.mountPath == "/tmp" or $mount.mountPath == "/var/log/nginx")
+  | select(any($pod.volumes[]?; .name == $mount.name and .emptyDir != null))
+  | $mount.mountPath
+')"
 
 echo "Safe Deployment hostPath metadata:"
 printf '%s\n' "${host_paths}" | sed 's/^/  /'
@@ -109,12 +119,39 @@ if ! printf '%s\n' "${host_paths}" | grep -Fxq "${OPERATOR_ARTIFACTS_PUBLIC_DIR}
   fail "Deployment does not mount the expected public artifact directory."
 fi
 
+public_mount_read_only="$(printf '%s\n' "${deployment_json}" | jq -r --arg public_dir "${OPERATOR_ARTIFACTS_PUBLIC_DIR}" '
+  .spec.template.spec as $pod
+  | ($pod.volumes[]? | select(.hostPath.path == $public_dir) | .name) as $public_volume
+  | if $public_volume == null then "false"
+    else
+      any($pod.containers[]? | select(.name == "nginx") | .volumeMounts[]?;
+        .name == $public_volume and .mountPath == "/usr/share/nginx/html" and .readOnly == true)
+    end
+')"
+[[ "${public_mount_read_only}" = "true" ]] || fail "Public artifact hostPath is not mounted read-only at /usr/share/nginx/html."
+echo "Public artifact hostPath is mounted read-only."
+
 unexpected_host_paths="$(printf '%s\n' "${host_paths}" | grep -Fxv "${OPERATOR_ARTIFACTS_PUBLIC_DIR}" || true)"
 if [[ -n "${unexpected_host_paths}" ]]; then
   echo "Unexpected hostPath mounts:" >&2
   printf '%s\n' "${unexpected_host_paths}" >&2
   exit 1
 fi
+
+required_runtime_mounts=(
+  /var/cache/nginx
+  /var/run
+  /tmp
+  /var/log/nginx
+)
+
+echo "Nginx writable runtime emptyDir mounts:"
+for mount_path in "${required_runtime_mounts[@]}"; do
+  if ! printf '%s\n' "${runtime_empty_dir_mounts}" | grep -Fxq "${mount_path}"; then
+    fail "Missing nginx emptyDir runtime mount: ${mount_path}"
+  fi
+  echo "  ${mount_path}"
+done
 
 echo "Private artifact directory is not mounted."
 echo "operator-artifacts verification completed."
