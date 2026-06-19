@@ -4,6 +4,7 @@
 # Keep documentation and sanitized examples trackable.
 !.gitignore
 !README.md
+!openbao-global.versions.env
 !*/
 !*.example
 !**/*.example

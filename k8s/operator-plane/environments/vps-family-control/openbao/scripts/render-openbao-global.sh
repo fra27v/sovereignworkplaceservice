@@ -2,11 +2,20 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+versions_file="${script_dir}/../openbao-global.versions.env"
 values_file="${script_dir}/../values/openbao-global.values.yaml"
 output_file="/tmp/openbao-global.dry-run.yaml"
 
-if [[ -z "${OPENBAO_CHART_VERSION:-}" ]]; then
-  echo "ERROR: OPENBAO_CHART_VERSION must be set." >&2
+if [[ ! -f "${versions_file}" ]]; then
+  echo "ERROR: missing versions file: ${versions_file}" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "${versions_file}"
+
+if [[ -z "${OPENBAO_HELM_CHART_VERSION:-}" ]]; then
+  echo "ERROR: OPENBAO_HELM_CHART_VERSION must be set in ${versions_file}." >&2
   exit 1
 fi
 
@@ -18,7 +27,7 @@ fi
 helm upgrade --install openbao-global openbao/openbao \
   --namespace openbao-operator \
   --create-namespace \
-  --version "${OPENBAO_CHART_VERSION}" \
+  --version "${OPENBAO_HELM_CHART_VERSION}" \
   --values "${values_file}" \
   --dry-run \
   > "${output_file}"
