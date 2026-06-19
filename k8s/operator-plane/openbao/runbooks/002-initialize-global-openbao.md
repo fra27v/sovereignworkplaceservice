@@ -47,4 +47,6 @@ Regenerating or replacing that key after OpenBao has data can prevent Global Ope
 
 ## Next Step
 
-The next runbook will enable audit logging and configure transit for downstream tenant OpenBao auto-unseal. Do not enable audit or transit from the initialization script.
+Next, complete critical material custody using `003-global-openbao-critical-material-custody.md`.
+
+After custody is complete, the following runbook will enable audit logging and configure transit for downstream tenant OpenBao auto-unseal. Do not enable audit or transit from the initialization script.
