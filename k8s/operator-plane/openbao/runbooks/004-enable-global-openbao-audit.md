@@ -50,3 +50,5 @@ Do not inspect audit log contents as part of this runbook. This runbook only ena
 ## Troubleshooting
 
 If audit commands fail with `x509: certificate signed by unknown authority`, ensure the script sets `VAULT_CACERT=/openbao/tls/tls.crt` inside the pod for authenticated `bao` commands.
+
+During first bootstrap, `bao audit list` may return exit code `2` with `No audit devices are enabled.`. The script must treat that output as a valid pre-enable state and continue to enable the file audit device.
