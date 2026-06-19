@@ -32,6 +32,14 @@ The script creates or verifies:
 - The `family-infra-01-transit-autounseal` policy with only encrypt/decrypt update capabilities for that key.
 - An orphan periodic tenant token with that policy.
 
+The policy is versioned in:
+
+```text
+k8s/operator-plane/openbao/policies/family-infra-01-transit-autounseal.hcl
+```
+
+The script applies that versioned policy file. Inline runtime policy definitions are intentionally avoided so the runtime policy can later be compared with Git using `bao policy read`.
+
 The tenant token JSON is written to:
 
 ```text
@@ -59,7 +67,7 @@ Safe successful output should state that:
 - File audit is enabled.
 - The transit engine is enabled.
 - The transit key exists.
-- The minimal tenant policy was written.
+- The versioned minimal tenant policy was written.
 - The tenant token JSON was written to the local bootstrap path.
 - The transit smoke test passed.
 

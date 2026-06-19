@@ -2,6 +2,8 @@
 set -euo pipefail
 umask 077
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
 namespace="openbao-operator"
 pod_name="openbao-global-0"
 init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
@@ -9,6 +11,7 @@ tenant_name="family-infra-01"
 transit_mount="transit"
 transit_key="family-infra-01-autounseal"
 policy_name="family-infra-01-transit-autounseal"
+policy_file="${repo_root}/k8s/operator-plane/openbao/policies/family-infra-01-transit-autounseal.hcl"
 token_file="${HOME}/openbao-bootstrap/openbao-global/family-infra-01-transit-token.json"
 token_period="720h"
 vault_addr="https://127.0.0.1:8200"
@@ -40,9 +43,30 @@ token_exec() {
     sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "$@"
 }
 
+token_exec_with_policy_file() {
+  local token="$1"
+  local policy_path="$2"
+  shift 2
+
+  {
+    printf '%s\n' "${token}"
+    cat "${policy_path}"
+  } | kubectl -n "${namespace}" exec -i "${pod_name}" -- \
+    sh -c '
+      IFS= read -r BAO_TOKEN
+      export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$4"
+      shift 4
+      policy_file="$(mktemp)"
+      trap "rm -f \"${policy_file}\"" EXIT
+      cat > "${policy_file}"
+      bao policy write "$1" "${policy_file}" >/dev/null
+    ' sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "$@"
+}
+
 command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
 command -v base64 >/dev/null 2>&1 || fail "Missing required command: base64"
 [[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
+[[ -s "${policy_file}" ]] || fail "Missing or empty policy file: ${policy_file}"
 [[ ! -e "${token_file}" ]] || fail "Refusing to overwrite existing tenant token file: ${token_file}"
 
 mode="$(file_mode "${init_file}")"
@@ -98,24 +122,8 @@ else
   exit "${key_read_exit_code}"
 fi
 
-echo "Creating or updating minimal tenant transit policy."
-token_exec "${root_token}" sh -c '
-  policy_name="$1"
-  transit_mount="$2"
-  transit_key="$3"
-  policy_file="$(mktemp)"
-  trap "rm -f \"${policy_file}\"" EXIT
-  cat > "${policy_file}" <<POLICY
-path "${transit_mount}/encrypt/${transit_key}" {
-  capabilities = ["update"]
-}
-
-path "${transit_mount}/decrypt/${transit_key}" {
-  capabilities = ["update"]
-}
-POLICY
-  bao policy write "${policy_name}" "${policy_file}" >/dev/null
-' sh "${policy_name}" "${transit_mount}" "${transit_key}"
+echo "Creating or updating minimal tenant transit policy from versioned HCL."
+token_exec_with_policy_file "${root_token}" "${policy_file}" "${policy_name}"
 
 echo "Creating orphan periodic tenant token and writing JSON output to local bootstrap file."
 token_exec "${root_token}" bao token create \
