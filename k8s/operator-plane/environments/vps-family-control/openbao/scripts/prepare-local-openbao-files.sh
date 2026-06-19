@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+OPENBAO_POD_GROUP_ID="1000"
+
 base_dir="/var/lib/sovereignworkplaceservice/openbao"
 seal_dir="${base_dir}/seal"
 tls_dir="${base_dir}/tls"
@@ -41,8 +43,8 @@ require_command() {
 require_command openssl
 
 echo "Preparing local Global OpenBao file directories."
-run_as_root install -d -o root -g root -m 0700 "${seal_dir}"
-run_as_root install -d -o root -g root -m 0750 "${tls_dir}"
+run_as_root install -d -o root -g "${OPENBAO_POD_GROUP_ID}" -m 0750 "${seal_dir}"
+run_as_root install -d -o root -g "${OPENBAO_POD_GROUP_ID}" -m 0750 "${tls_dir}"
 run_as_root install -d -o root -g root -m 0750 "${audit_dir}"
 
 if [[ -e "${seal_key}" ]]; then
@@ -52,8 +54,8 @@ else
   run_as_root openssl rand -out "${seal_key}" 32
 fi
 
-run_as_root chown root:root "${seal_key}"
-run_as_root chmod 0400 "${seal_key}"
+run_as_root chown "root:${OPENBAO_POD_GROUP_ID}" "${seal_key}"
+run_as_root chmod 0440 "${seal_key}"
 
 if [[ -e "${tls_key}" && -e "${tls_cert}" ]]; then
   echo "TLS key and certificate already exist; leaving them unchanged."
@@ -97,16 +99,18 @@ OPENSSL_CONFIG
     -keyout "${tmp_key}" \
     -out "${tmp_cert}" \
     -config "${tmp_config}" >/dev/null 2>&1
-  run_as_root install -o root -g root -m 0400 "${tmp_key}" "${tls_key}"
+  run_as_root install -o root -g "${OPENBAO_POD_GROUP_ID}" -m 0440 "${tmp_key}" "${tls_key}"
   run_as_root install -o root -g root -m 0444 "${tmp_cert}" "${tls_cert}"
   rm -f "${tmp_key}" "${tmp_cert}"
 else
   fail "Only one TLS file exists. Remove the incomplete local TLS pair or restore the missing file, then rerun."
 fi
 
-run_as_root chown root:root "${tls_key}" "${tls_cert}"
-run_as_root chmod 0400 "${tls_key}"
+run_as_root chown "root:${OPENBAO_POD_GROUP_ID}" "${tls_key}"
+run_as_root chown root:root "${tls_cert}"
+run_as_root chmod 0440 "${tls_key}"
 run_as_root chmod 0444 "${tls_cert}"
+run_as_root chown root:root "${audit_dir}"
 run_as_root chmod 0750 "${audit_dir}"
 
 echo "Verifying local file metadata without printing secret contents."
@@ -116,6 +120,19 @@ seal_size="$(stat_size "${seal_key}")"
 [[ -f "${tls_key}" ]] || fail "Missing TLS key: ${tls_key}"
 [[ -f "${tls_cert}" ]] || fail "Missing TLS certificate: ${tls_cert}"
 
+echo "Safe ownership and mode metadata:"
+run_as_root stat -c '%U:%G %a %n' \
+  "${seal_dir}" \
+  "${seal_key}" \
+  "${tls_dir}" \
+  "${tls_key}" \
+  "${tls_cert}" \
+  "${audit_dir}"
+
+echo "Safe static seal key size:"
+run_as_root stat -c '%s %n' "${seal_key}"
+
+echo "Safe TLS certificate metadata:"
 openssl x509 -in "${tls_cert}" -noout -subject -issuer -dates
 
 echo "Local Global OpenBao files are prepared."

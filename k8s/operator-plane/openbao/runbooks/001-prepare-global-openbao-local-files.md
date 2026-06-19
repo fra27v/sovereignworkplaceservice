@@ -10,6 +10,8 @@ The static seal key used here is a family/demo compromise. It keeps the lab oper
 
 Compromise of VPS root compromises the Global OpenBao unseal path because root can read or replace local files under `/var/lib/sovereignworkplaceservice/openbao/`. Treat root access to the operator-plane VPS as equivalent to control over Global OpenBao startup.
 
+The OpenBao Helm chart runs the pod as a non-root user with group ID `1000`. The static seal key and TLS private key are mounted from read-only hostPath volumes, so they must be group-readable by that pod group. This is why the local secret files use `root:1000` ownership and mode `0440` instead of `root:root` mode `0400`. This access model is acceptable only for the family/demo static-seal compromise documented here.
+
 ## Prepare Files
 
 Run the script on the `vps-family-control` operator-plane VPS:
@@ -47,10 +49,10 @@ sudo stat -c '%U:%G %a %n' \
 Expected permissions:
 
 ```text
-root:root 700 /var/lib/sovereignworkplaceservice/openbao/seal
-root:root 400 /var/lib/sovereignworkplaceservice/openbao/seal/unseal-20260618-1.key
-root:root 750 /var/lib/sovereignworkplaceservice/openbao/tls
-root:root 400 /var/lib/sovereignworkplaceservice/openbao/tls/tls.key
+root:1000 750 /var/lib/sovereignworkplaceservice/openbao/seal
+root:1000 440 /var/lib/sovereignworkplaceservice/openbao/seal/unseal-20260618-1.key
+root:1000 750 /var/lib/sovereignworkplaceservice/openbao/tls
+root:1000 440 /var/lib/sovereignworkplaceservice/openbao/tls/tls.key
 root:root 444 /var/lib/sovereignworkplaceservice/openbao/tls/tls.crt
 root:root 750 /var/lib/sovereignworkplaceservice/openbao/audit
 ```
