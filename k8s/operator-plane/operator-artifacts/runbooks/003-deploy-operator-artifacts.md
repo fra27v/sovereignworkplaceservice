@@ -58,12 +58,24 @@ Install the rendered resources:
 ```
 
 The install script renders to a temporary file, applies the manifest with
-`kubectl apply -f`, verifies resource metadata, and checks that only the public
-artifact directory is mounted into the Deployment.
+`kubectl apply -f`, waits for the Deployment rollout, verifies resource metadata,
+and checks that only the public artifact directory is mounted into the
+Deployment.
 
 The private artifact directory must never be mounted into the artifact server
 pod. The temporary rendered manifest is created with `0600` permissions and is
 deleted after install.
+
+If the rollout times out, use only safe diagnostics:
+
+```bash
+kubectl -n operator-artifacts get pods -o wide
+kubectl -n operator-artifacts logs deploy/operator-artifacts --tail=120
+kubectl -n operator-artifacts describe pod -l app.kubernetes.io/name=operator-artifacts
+```
+
+Do not paste tokens, htpasswd files, rendered manifests, Kubernetes Secret
+`.data`, or Kubernetes Secret `stringData` into chat, logs, or tickets.
 
 ## Nginx Read-Only Root Filesystem
 

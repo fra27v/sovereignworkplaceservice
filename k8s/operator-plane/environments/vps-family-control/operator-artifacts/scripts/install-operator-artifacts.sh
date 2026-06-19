@@ -22,6 +22,17 @@ fail() {
   exit 1
 }
 
+print_rollout_troubleshooting() {
+  cat <<EOF
+Rollout did not complete successfully. Safe troubleshooting commands:
+  kubectl -n ${OPERATOR_ARTIFACTS_NAMESPACE} get pods -o wide
+  kubectl -n ${OPERATOR_ARTIFACTS_NAMESPACE} logs deploy/${OPERATOR_ARTIFACTS_SERVICE_NAME} --tail=120
+  kubectl -n ${OPERATOR_ARTIFACTS_NAMESPACE} describe pod -l app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}
+
+Do not print or paste token values, htpasswd contents, Kubernetes Secret data, or rendered Secret material.
+EOF
+}
+
 missing_env_file() {
   cat >&2 <<EOF
 Missing operator artifacts environment file:
@@ -67,6 +78,12 @@ done
 "${render_script}" --output "${rendered_file}"
 
 kubectl apply -f "${rendered_file}"
+
+echo "Waiting for operator-artifacts Deployment rollout."
+if ! kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" rollout status deployment/"${OPERATOR_ARTIFACTS_SERVICE_NAME}" --timeout=180s; then
+  print_rollout_troubleshooting
+  exit 1
+fi
 
 echo "Verifying operator-artifacts resources."
 kubectl get namespace "${OPERATOR_ARTIFACTS_NAMESPACE}" \
