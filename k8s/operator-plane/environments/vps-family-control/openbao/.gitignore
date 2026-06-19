@@ -1,0 +1,13 @@
+# Ignore real local secret material for this OpenBao environment.
+*
+
+# Keep documentation and sanitized examples trackable.
+!.gitignore
+!README.md
+!*/
+!*.example
+!**/*.example
+!values/
+!values/*.yaml
+!scripts/
+!scripts/*.sh

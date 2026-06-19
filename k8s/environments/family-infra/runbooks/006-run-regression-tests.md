@@ -35,5 +35,16 @@ Run the suite and remove the whoami routing smoke test afterward:
 sudo ./k8s/environments/family-infra/tests/regression/run.sh --cleanup
 ```
 
+## Expected Result
+
+Successful output ends with:
+
+```text
+family-infra regression test suite passed
+```
+
+On failure, the runner prints the failed step and, when the whoami smoke test
+was already applied, a cleanup command.
+
 Do not commit generated local files, kubeconfig files, certificates, tokens,
 credentials, or secrets.

@@ -39,6 +39,10 @@ sudo ./k8s/platform/components/traefik/scripts/verify.sh \
   --env-file k8s/environments/family-infra/components/traefik-runtime.env
 ```
 
+The verification checks the Helm release, pods, deployment, IngressClass,
+services, hostPort listeners, and absence of an unexpected LoadBalancer
+Service.
+
 ## Optional Smoke Test
 
 Apply the versioned whoami routing smoke test:
@@ -58,6 +62,15 @@ Delete the smoke test when finished:
 
 ```bash
 sudo ./k8s/environments/family-infra/tests/smoke/whoami-routing/delete.sh
+```
+
+## Regression
+
+After installing Traefik, run the regression suite when you want to verify the
+k3s baseline, runtime Traefik, and whoami routing together:
+
+```bash
+sudo ./k8s/environments/family-infra/tests/regression/run.sh
 ```
 
 ## Rollback

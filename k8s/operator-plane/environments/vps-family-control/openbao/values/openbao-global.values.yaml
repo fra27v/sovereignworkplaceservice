@@ -1,0 +1,86 @@
+# Global OpenBao values for the vps-family-control operator-plane.
+# This file contains no secrets. Local VPS files are expected under:
+# /var/lib/sovereignworkplaceservice/openbao/
+
+injector:
+  enabled: false
+
+server:
+  enabled: true
+  image:
+    repository: openbao/openbao
+
+  ingress:
+    enabled: false
+
+  service:
+    enabled: true
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+  dataStorage:
+    enabled: true
+    mountPath: /openbao/data
+    size: 5Gi
+    accessMode: ReadWriteOnce
+
+  auditStorage:
+    enabled: false
+
+  standalone:
+    enabled: true
+    config: |
+      ui = true
+
+      listener "tcp" {
+        address       = "[::]:8200"
+        tls_disable   = false
+        tls_cert_file = "/openbao/tls/tls.crt"
+        tls_key_file  = "/openbao/tls/tls.key"
+      }
+
+      storage "file" {
+        path = "/openbao/data"
+      }
+
+      seal "static" {
+        key = "file:///openbao/seal/unseal-20260618-1.key"
+      }
+
+      telemetry {
+        disable_hostname = true
+      }
+
+  volumes:
+    - name: openbao-static-seal
+      hostPath:
+        path: /var/lib/sovereignworkplaceservice/openbao/seal
+        type: Directory
+    - name: openbao-local-tls
+      hostPath:
+        path: /var/lib/sovereignworkplaceservice/openbao/tls
+        type: Directory
+    - name: openbao-audit
+      hostPath:
+        path: /var/lib/sovereignworkplaceservice/openbao/audit
+        type: DirectoryOrCreate
+
+  volumeMounts:
+    - name: openbao-static-seal
+      mountPath: /openbao/seal
+      readOnly: true
+    - name: openbao-local-tls
+      mountPath: /openbao/tls
+      readOnly: true
+    - name: openbao-audit
+      mountPath: /openbao/audit
+
+  ha:
+    enabled: false

@@ -7,7 +7,7 @@ This runbook installs and verifies the k3s baseline for the active
 
 This runbook covers only the k3s baseline.
 
-Out of scope for now:
+Out of scope:
 
 - Traefik installation.
 - Application migration.
@@ -34,6 +34,20 @@ git pull --ff-only
 ./k8s/environments/family-infra/scripts/setup-family-infra.sh install
 ./k8s/environments/family-infra/scripts/setup-family-infra.sh verify
 ```
+
+## Verify
+
+The verification command checks:
+
+- node Ready
+- kube-system pods
+- embedded k3s Traefik is absent from `kube-system`
+- secrets encryption is enabled
+- kubeconfig mode is `0600`
+- key listening ports
+
+It does not fail when the valid runtime Traefik exists in
+`ingress-family-infra`.
 
 ## Recovery Notes
 

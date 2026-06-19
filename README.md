@@ -247,12 +247,16 @@ The operator environment should remain separate from customer runtime environmen
 
 Current lab direction:
 
-* Docker-first deployment
+* Docker Compose for the original service lab
+* active `family-infra` k3s environment for the operational migration path
+* verified runtime Traefik instance for `family-infra`
 * service-level `docker-compose.yml` files
 * infrastructure and service configuration kept as code in this repository
 * Vault-managed secrets
 * internal TLS per service
 * Traefik routing
+* versioned environment tests, including whoami routing smoke and regression
+  checks for `family-infra`
 
 Infrastructure as Code principles:
 
@@ -374,3 +378,4 @@ Operations:
 * backup
 * monitoring
 * orchestration and deployment via k3s
+* regression testing for the `family-infra` k3s baseline and runtime Traefik
