@@ -33,11 +33,11 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx:stable-alpine
+          image: nginxinc/nginx-unprivileged:stable-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
           volumeMounts:
             - name: public-artifacts
               mountPath: /usr/share/nginx/html
@@ -51,6 +51,7 @@ spec:
             - name: nginx-log
               mountPath: /var/log/nginx
           securityContext:
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:

@@ -86,6 +86,56 @@ kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFA
   --no-headers
 
 deployment_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
+service_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
+pods_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get pods \
+  -l "app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
+  -o json)"
+
+container_image="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .image')"
+[[ "${container_image}" = "nginxinc/nginx-unprivileged:stable-alpine" ]] || fail "Unexpected nginx container image: ${container_image}"
+echo "Container image: ${container_image}"
+
+container_port="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .ports[]? | select(.name == "http") | .containerPort')"
+[[ "${container_port}" = "8080" ]] || fail "Unexpected nginx http container port: ${container_port}"
+echo "Container http port: ${container_port}"
+
+service_port="$(printf '%s\n' "${service_json}" | jq -r '.spec.ports[]? | select(.name == "http") | .port')"
+[[ "${service_port}" = "80" ]] || fail "Unexpected Service http port: ${service_port}"
+echo "Service http port: ${service_port}"
+
+deployment_available="$(printf '%s\n' "${deployment_json}" | jq -r 'any(.status.conditions[]?; .type == "Available" and .status == "True")')"
+[[ "${deployment_available}" = "true" ]] || fail "Deployment is not Available."
+echo "Deployment is Available."
+
+echo "Safe pod metadata:"
+printf '%s\n' "${pods_json}" | jq -r '
+  .items[]?
+  | {
+      name: .metadata.name,
+      phase: .status.phase,
+      ready: ((.status.conditions[]? | select(.type == "Ready") | .status) // "Unknown"),
+      restarts: ([.status.containerStatuses[]?.restartCount] | add // 0),
+      waiting_reason: ((.status.containerStatuses[]?.state.waiting.reason) // "")
+    }
+  | "  name=\(.name) phase=\(.phase) ready=\(.ready) restarts=\(.restarts)"
+'
+
+ready_pods="$(printf '%s\n' "${pods_json}" | jq -r '.items[]? | select(any(.status.conditions[]?; .type == "Ready" and .status == "True")) | .metadata.name')"
+[[ -n "${ready_pods}" ]] || fail "No matching operator-artifacts pod has Ready=True."
+
+bad_pods="$(printf '%s\n' "${pods_json}" | jq -r '
+  .items[]?
+  | {
+      name: .metadata.name,
+      phase: .status.phase,
+      ready: ((.status.conditions[]? | select(.type == "Ready") | .status) // "Unknown"),
+      waiting_reason: ((.status.containerStatuses[]?.state.waiting.reason) // "")
+    }
+  | select(.phase != "Running" or .phase == "Error" or .phase == "Pending" or .ready != "True" or .waiting_reason == "CrashLoopBackOff")
+  | .name
+')"
+[[ -z "${bad_pods}" ]] || fail "One or more operator-artifacts pods are not healthy."
+
 host_paths="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.volumes[]? | select(.hostPath != null) | .hostPath.path')"
 runtime_empty_dir_mounts="$(printf '%s\n' "${deployment_json}" | jq -r '
   .spec.template.spec as $pod

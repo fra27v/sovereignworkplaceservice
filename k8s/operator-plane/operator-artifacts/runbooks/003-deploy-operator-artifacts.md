@@ -67,9 +67,28 @@ deleted after install.
 
 ## Nginx Read-Only Root Filesystem
 
-The `operator-artifacts` Deployment keeps `readOnlyRootFilesystem: true`.
-Artifact content remains mounted read-only from the public artifact hostPath at
-`/usr/share/nginx/html`, and the private artifact directory remains unmounted.
+The `operator-artifacts` Deployment uses
+`nginxinc/nginx-unprivileged:stable-alpine`. The nginx container listens on port
+`8080`, while the Kubernetes Service still exposes port `80` and targets the
+named `http` container port.
+
+The Deployment keeps `runAsNonRoot: true`,
+`allowPrivilegeEscalation: false`, `readOnlyRootFilesystem: true`, and drops all
+Linux capabilities. Artifact content remains mounted read-only from the public
+artifact hostPath at `/usr/share/nginx/html`, and the private artifact directory
+remains unmounted.
+
+The earlier `nginx:stable-alpine` image can fail with `CrashLoopBackOff` and:
+
+```text
+nginx: [emerg] chown("/var/cache/nginx/client_temp", 101) failed (1: Operation not permitted)
+```
+
+That failure is fixed by using the unprivileged nginx image rather than granting
+extra privileges.
+
+Do not add `CAP_CHOWN`. Do not enable privileged mode. Do not weaken the
+private/public artifact directory separation.
 
 If the nginx pod enters `CrashLoopBackOff` after enabling the read-only root
 filesystem, check whether nginx is missing writable runtime directories. The
