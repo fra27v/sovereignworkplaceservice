@@ -1,0 +1,6 @@
+traefik-acme-dns01.env
+traefik-ovh-credentials.env
+*.token
+*.key
+*.pem
+*.crt
