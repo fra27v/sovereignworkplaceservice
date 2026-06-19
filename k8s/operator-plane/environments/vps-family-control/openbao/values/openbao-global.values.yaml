@@ -62,6 +62,14 @@ server:
         current_key    = "file:///openbao/seal/unseal-20260618-1.key"
       }
 
+      audit "file" "file" {
+        description = "Global OpenBao file audit device"
+        options = {
+          file_path = "/openbao/audit/audit.log"
+          log_raw   = "false"
+        }
+      }
+
       telemetry {
         disable_hostname = true
       }

@@ -1,8 +1,10 @@
 # Enable Global OpenBao Audit
 
-This runbook enables file audit logging for Global OpenBao on the `vps-family-control` operator-plane VPS.
+This runbook documents declarative file audit logging for Global OpenBao on the `vps-family-control` operator-plane VPS.
 
 Audit logging must be enabled before creating transit keys or issuing transit tokens. The audit log gives operators a record of bootstrap actions that affect downstream tenant OpenBao auto-unseal.
+
+Current OpenBao requires declarative, config-based audit device management. API-based `bao audit enable` is intentionally not used.
 
 ## Security Notes
 
@@ -16,39 +18,51 @@ The file audit device writes to:
 
 The `/openbao/audit` directory is backed by the Global OpenBao audit PVC configured in the Helm values. Log rotation and retention will be standardized later in the backup and disaster recovery phase.
 
-The initialization root token is used only for this bootstrap operation. Do not print it, paste it into chat, save it in shell history, or commit it to Git.
+Audit is enabled by the Helm values in `k8s/operator-plane/environments/vps-family-control/openbao/values/openbao-global.values.yaml` and applied with `helm upgrade` through the Global OpenBao install script.
 
-## Run The Script
+## Apply The Configuration
 
-Run this after Global OpenBao has been initialized and unsealed:
+Render and review the Helm manifest first:
 
 ```bash
 cd /path/to/sovereignworkplaceservice
-k8s/operator-plane/environments/vps-family-control/openbao/scripts/enable-openbao-global-audit.sh
+k8s/operator-plane/environments/vps-family-control/openbao/scripts/render-openbao-global.sh
 ```
 
-The script reads the root token from:
+Then apply the values with the install script:
+
+```bash
+k8s/operator-plane/environments/vps-family-control/openbao/scripts/install-openbao-global.sh
+```
+
+The script performs a Helm upgrade. It does not initialize OpenBao and does not print secrets.
+
+## Verify Audit Is Enabled
+
+After the upgraded pod is running and unsealed, verify audit registration:
+
+```bash
+k8s/operator-plane/environments/vps-family-control/openbao/scripts/verify-openbao-global-audit.sh
+```
+
+The verification script reads the root token from:
 
 ```text
 ~/openbao-bootstrap/openbao-global/openbao-global-init.json
 ```
 
-It passes the token to the in-pod `bao` process without printing it. It does not enable transit.
-
-## Verify Audit Is Enabled
-
-The script prints `bao audit list` after enabling the file audit device. A successful result includes:
+It passes the token to the in-pod `bao audit list` command without printing it. A successful result includes:
 
 ```text
 file/
 ```
 
-You can rerun the script safely. If `file/` is already enabled, it exits without changing the audit configuration.
+The verification script also checks that `/openbao/audit/audit.log` exists. It does not print or inspect audit log contents.
 
-Do not inspect audit log contents as part of this runbook. This runbook only enables the audit device and verifies that the device is registered.
+Do not inspect audit log contents as part of this runbook. Audit log contents must not be printed, pasted into chat, attached to tickets, or committed to Git.
 
 ## Troubleshooting
 
 If audit commands fail with `x509: certificate signed by unknown authority`, ensure the script sets `VAULT_CACERT=/openbao/tls/tls.crt` inside the pod for authenticated `bao` commands.
 
-During first bootstrap, `bao audit list` may return exit code `2` with `No audit devices are enabled.`. The script must treat that output as a valid pre-enable state and continue to enable the file audit device.
+If `bao audit list` does not show `file/`, confirm the rendered StatefulSet contains the declarative `audit "file" "file"` stanza and that the running pod has been restarted from the updated Helm values.
