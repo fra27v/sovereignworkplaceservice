@@ -11,3 +11,4 @@ Current Global OpenBao runbooks:
 3. `003-global-openbao-critical-material-custody.md`
 4. `004-enable-global-openbao-audit.md`
 5. `005-retire-global-openbao-bootstrap-material.md`
+6. `006-configure-global-openbao-transit-family-infra-01.md`
