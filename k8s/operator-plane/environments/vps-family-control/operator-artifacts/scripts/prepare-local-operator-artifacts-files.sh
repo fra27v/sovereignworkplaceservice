@@ -59,7 +59,7 @@ done
 tenant_public_dir="${OPERATOR_ARTIFACTS_PUBLIC_DIR}/tenants/${OPERATOR_ARTIFACTS_TENANT_NAME}"
 tokens_dir="${OPERATOR_ARTIFACTS_PRIVATE_DIR}/tokens"
 dummy_artifact="${tenant_public_dir}/README.txt"
-dummy_checksum="${dummy_artifact}.sha256"
+dummy_checksum="${tenant_public_dir}/README.txt.sha256"
 
 echo "Preparing local operator artifact directories."
 install -d -o root -g root -m 0755 "${OPERATOR_ARTIFACTS_PUBLIC_DIR}"
@@ -76,7 +76,10 @@ fi
 
 chown root:root "${dummy_artifact}"
 chmod 0644 "${dummy_artifact}"
-sha256sum "${dummy_artifact}" > "${dummy_checksum}"
+(
+  cd "${tenant_public_dir}"
+  sha256sum README.txt > README.txt.sha256
+)
 chown root:root "${dummy_checksum}"
 chmod 0644 "${dummy_checksum}"
 

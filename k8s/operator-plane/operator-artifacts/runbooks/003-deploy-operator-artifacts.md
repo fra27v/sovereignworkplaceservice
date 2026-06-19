@@ -145,6 +145,24 @@ curl -fsS -u 'family-infra-01:<token>' https://operator-artifacts.<domain>/tenan
 Use `<token>` as a placeholder in documentation and chat. Never paste commands
 that contain real credentials.
 
+Checksum files must use relative artifact filenames so tenants can verify
+downloaded artifacts locally. For the dummy artifact, `README.txt.sha256` must
+contain `README.txt`, not an absolute VPS filesystem path.
+
+Safe local verification example with placeholders:
+
+```bash
+curl -fsS -u 'family-infra-01:<token>' -O https://operator-artifacts.<domain>/tenants/family-infra-01/README.txt
+curl -fsS -u 'family-infra-01:<token>' -O https://operator-artifacts.<domain>/tenants/family-infra-01/README.txt.sha256
+sha256sum -c README.txt.sha256
+```
+
+Expected output:
+
+```text
+README.txt: OK
+```
+
 ## Sensitive Material Rules
 
 Do not paste or commit:
