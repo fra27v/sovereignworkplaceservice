@@ -6,6 +6,17 @@ versions_file="${script_dir}/../openbao-global.versions.env"
 values_file="${script_dir}/../values/openbao-global.values.yaml"
 output_file="/tmp/openbao-global.dry-run.yaml"
 
+count_statefulset_env_name() {
+  local env_name="$1"
+
+  awk -v env_name="${env_name}" '
+    /^kind: StatefulSet$/ { in_statefulset = 1; next }
+    in_statefulset && /^---$/ { in_statefulset = 0 }
+    in_statefulset && $0 ~ "^[[:space:]]*- name: " env_name "$" { count++ }
+    END { print count + 0 }
+  ' "${output_file}"
+}
+
 if [[ ! -f "${versions_file}" ]]; then
   echo "ERROR: missing versions file: ${versions_file}" >&2
   exit 1
@@ -69,4 +80,20 @@ if grep -Fn 'value: "http://$(POD_IP):8200"' "${output_file}"; then
   exit 1
 else
   echo "OK: no HTTP pod OpenBao address rendered."
+fi
+
+bao_addr_count="$(count_statefulset_env_name "BAO_ADDR")"
+if [[ "${bao_addr_count}" -gt 1 ]]; then
+  echo "ERROR: duplicate BAO_ADDR entries rendered in StatefulSet env: ${bao_addr_count}" >&2
+  exit 1
+else
+  echo "OK: BAO_ADDR entries rendered in StatefulSet env: ${bao_addr_count}"
+fi
+
+bao_api_addr_count="$(count_statefulset_env_name "BAO_API_ADDR")"
+if [[ "${bao_api_addr_count}" -gt 1 ]]; then
+  echo "ERROR: duplicate BAO_API_ADDR entries rendered in StatefulSet env: ${bao_api_addr_count}" >&2
+  exit 1
+else
+  echo "OK: BAO_API_ADDR entries rendered in StatefulSet env: ${bao_api_addr_count}"
 fi

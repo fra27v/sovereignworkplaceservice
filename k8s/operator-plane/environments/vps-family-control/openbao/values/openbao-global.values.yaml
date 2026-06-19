@@ -21,11 +21,6 @@ server:
     enabled: true
     type: ClusterIP
 
-  extraEnvironmentVars:
-    BAO_ADDR: "https://127.0.0.1:8200"
-    BAO_API_ADDR: "https://$(POD_IP):8200"
-    VAULT_ADDR: "https://127.0.0.1:8200"
-
   resources:
     requests:
       cpu: 100m
