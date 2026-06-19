@@ -10,3 +10,4 @@ Runbooks:
 
 - `runbooks/001-operator-artifacts-architecture.md`
 - `runbooks/002-prepare-local-artifact-storage-and-token.md`
+- `runbooks/003-deploy-operator-artifacts.md`
