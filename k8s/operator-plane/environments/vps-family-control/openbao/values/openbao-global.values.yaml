@@ -32,7 +32,10 @@ server:
     accessMode: ReadWriteOnce
 
   auditStorage:
-    enabled: false
+    enabled: true
+    mountPath: /openbao/audit
+    size: 2Gi
+    accessMode: ReadWriteOnce
 
   standalone:
     enabled: true
@@ -51,7 +54,8 @@ server:
       }
 
       seal "static" {
-        key = "file:///openbao/seal/unseal-20260618-1.key"
+        current_key_id = "20260618-1"
+        current_key    = "file:///openbao/seal/unseal-20260618-1.key"
       }
 
       telemetry {
@@ -67,10 +71,6 @@ server:
       hostPath:
         path: /var/lib/sovereignworkplaceservice/openbao/tls
         type: Directory
-    - name: openbao-audit
-      hostPath:
-        path: /var/lib/sovereignworkplaceservice/openbao/audit
-        type: DirectoryOrCreate
 
   volumeMounts:
     - name: openbao-static-seal
@@ -79,8 +79,6 @@ server:
     - name: openbao-local-tls
       mountPath: /openbao/tls
       readOnly: true
-    - name: openbao-audit
-      mountPath: /openbao/audit
 
   ha:
     enabled: false
