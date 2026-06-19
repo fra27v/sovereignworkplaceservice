@@ -8,6 +8,7 @@ Do not include secrets, tokens, `role_id`, `secret_id`, private keys, certificat
 
 - [Overview](overview.md)
 - [Repository structure](repository-structure.md)
+- [Repository governance](repository-governance.md)
 - [Traefik and networking](traefik-networking.md)
 - [Vault and secrets](vault-secrets.md)
 - [Identity flow: HR, midPoint, Keycloak](identity-flow.md)

@@ -1,0 +1,7 @@
+operator-artifacts.env
+*.token
+*.htpasswd
+*.crt
+*.key
+*.pem
+*.sig
