@@ -13,6 +13,10 @@ spec:
       enabled: true
       path: /data
 
+    service:
+      spec:
+        externalTrafficPolicy: ${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}
+
     additionalArguments:
       - "--certificatesresolvers.${TRAEFIK_ACME_CERT_RESOLVER}.acme.email=${TRAEFIK_ACME_EMAIL}"
       - "--certificatesresolvers.${TRAEFIK_ACME_CERT_RESOLVER}.acme.storage=${TRAEFIK_ACME_STORAGE_PATH}"

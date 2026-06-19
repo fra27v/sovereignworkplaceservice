@@ -44,6 +44,31 @@ Copy it to a local gitignored env file before use and replace placeholders.
 
 Production ACME has rate limits, so reruns should be done carefully. Do not repeatedly delete ACME storage or force certificate reissuance during normal troubleshooting.
 
+## Real Client Source IPs
+
+The Traefik Service must preserve real client source IPs so Traefik
+`IPAllowList` middleware can evaluate the operator home public IP correctly.
+
+Set this in the real ACME DNS-01 env file:
+
+```bash
+TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY="Local"
+```
+
+`Local` is required for `operator-artifacts` IPAllowList behavior. If the live
+Service remains `externalTrafficPolicy=Cluster`, Traefik may see an internal
+cluster source IP instead of the real client source IP, and allowlist decisions
+can fail.
+
+This repository manages the setting through k3s `HelmChartConfig`; do not patch
+the live Traefik Service directly.
+
+Safe verification:
+
+```bash
+kubectl -n kube-system get svc traefik -o jsonpath='{.spec.type}{" externalTrafficPolicy="}{.spec.externalTrafficPolicy}{"\n"}'
+```
+
 ## Execution Order
 
 1. Copy env examples to real env files:

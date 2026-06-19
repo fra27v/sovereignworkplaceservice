@@ -86,6 +86,7 @@ render_template() {
     -e "s|\${TRAEFIK_ACME_DNS_PROVIDER}|${TRAEFIK_ACME_DNS_PROVIDER}|g" \
     -e "s|\${TRAEFIK_ACME_DNS_RESOLVERS}|${TRAEFIK_ACME_DNS_RESOLVERS}|g" \
     -e "s|\${TRAEFIK_ACME_DNS_DELAY_BEFORE_CHECK}|${TRAEFIK_ACME_DNS_DELAY_BEFORE_CHECK}|g" \
+    -e "s|\${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}|${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}|g" \
     -e "s|\${TRAEFIK_ACME_CA_SERVER_ARGUMENT}|${TRAEFIK_ACME_CA_SERVER_ARGUMENT}|g" \
     "${template_file}"
 }
@@ -106,6 +107,7 @@ required_vars=(
   TRAEFIK_ACME_DNS_RESOLVERS
   TRAEFIK_ACME_DNS_DELAY_BEFORE_CHECK
   TRAEFIK_OVH_DNS_SECRET_NAME
+  TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY
 )
 
 for var_name in "${required_vars[@]}"; do
@@ -115,6 +117,14 @@ done
 if [[ "${TRAEFIK_ACME_DNS_PROVIDER}" != "ovh" ]]; then
   fail "TRAEFIK_ACME_DNS_PROVIDER must be ovh for this script."
 fi
+
+case "${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}" in
+  Local|Cluster)
+    ;;
+  *)
+    fail "TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY must be Local or Cluster."
+    ;;
+esac
 
 if [[ -n "${TRAEFIK_ACME_CA_SERVER:-}" && "${TRAEFIK_ACME_CA_SERVER}" != "<empty-for-production-or-set-staging-url>" ]]; then
   TRAEFIK_ACME_CA_SERVER_ARGUMENT="      - \"--certificatesresolvers.${TRAEFIK_ACME_CERT_RESOLVER}.acme.caserver=${TRAEFIK_ACME_CA_SERVER}\""
@@ -138,6 +148,7 @@ echo "HelmChartConfig name: ${TRAEFIK_HELMCHARTCONFIG_NAME}"
 echo "ACME resolver: ${TRAEFIK_ACME_CERT_RESOLVER}"
 echo "DNS provider: ${TRAEFIK_ACME_DNS_PROVIDER}"
 echo "OVH Secret name: ${TRAEFIK_OVH_DNS_SECRET_NAME}"
+echo "Traefik Service externalTrafficPolicy: ${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}"
 echo "No manifest was applied."
 if [[ "${keep_output}" != "true" ]]; then
   echo "Temporary output will be removed after script completion. Use --keep-output to keep it for inspection."

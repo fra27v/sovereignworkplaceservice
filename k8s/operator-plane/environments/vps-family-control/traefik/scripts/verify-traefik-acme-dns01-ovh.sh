@@ -48,11 +48,20 @@ required_vars=(
   TRAEFIK_ACME_CERT_RESOLVER
   TRAEFIK_ACME_DNS_PROVIDER
   TRAEFIK_OVH_DNS_SECRET_NAME
+  TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY
 )
 
 for var_name in "${required_vars[@]}"; do
   require_var "${var_name}"
 done
+
+case "${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}" in
+  Local|Cluster)
+    ;;
+  *)
+    fail "TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY must be Local or Cluster."
+    ;;
+esac
 
 echo "Checking OVH DNS credential Secret metadata."
 secret_json="$(kubectl -n "${TRAEFIK_NAMESPACE}" get secret "${TRAEFIK_OVH_DNS_SECRET_NAME}" -o json)"
@@ -98,6 +107,14 @@ fi
 
 if ! printf '%s\n' "${deployment_yaml}" | grep -Fq "certificatesresolvers.${TRAEFIK_ACME_CERT_RESOLVER}.acme.dnschallenge.provider=${TRAEFIK_ACME_DNS_PROVIDER}"; then
   fail "Traefik Deployment does not show DNS provider ${TRAEFIK_ACME_DNS_PROVIDER}."
+fi
+
+echo "Checking Traefik Service externalTrafficPolicy."
+live_external_traffic_policy="$(kubectl -n "${TRAEFIK_NAMESPACE}" get service traefik -o jsonpath='{.spec.externalTrafficPolicy}')"
+echo "Expected externalTrafficPolicy: ${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}"
+echo "Live externalTrafficPolicy: ${live_external_traffic_policy}"
+if [[ "${live_external_traffic_policy}" != "${TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY}" ]]; then
+  fail "Traefik Service externalTrafficPolicy does not match the expected value."
 fi
 
 echo "Checking Traefik pod phase."
