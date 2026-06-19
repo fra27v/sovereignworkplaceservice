@@ -46,3 +46,7 @@ file/
 You can rerun the script safely. If `file/` is already enabled, it exits without changing the audit configuration.
 
 Do not inspect audit log contents as part of this runbook. This runbook only enables the audit device and verifies that the device is registered.
+
+## Troubleshooting
+
+If audit commands fail with `x509: certificate signed by unknown authority`, ensure the script sets `VAULT_CACERT=/openbao/tls/tls.crt` inside the pod for authenticated `bao` commands.

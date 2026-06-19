@@ -6,6 +6,8 @@ pod_name="openbao-global-0"
 init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
 audit_path="file/"
 audit_file_path="/openbao/audit/audit.log"
+vault_addr="https://127.0.0.1:8200"
+vault_cacert="/openbao/tls/tls.crt"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -27,7 +29,8 @@ token_exec() {
   shift
 
   printf '%s' "${token}" | kubectl -n "${namespace}" exec -i "${pod_name}" -- \
-    sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN; "$@"' sh "$@"
+    sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN VAULT_ADDR="$1" VAULT_CACERT="$2"; shift 2; "$@"' \
+    sh "${vault_addr}" "${vault_cacert}" "$@"
 }
 
 command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
