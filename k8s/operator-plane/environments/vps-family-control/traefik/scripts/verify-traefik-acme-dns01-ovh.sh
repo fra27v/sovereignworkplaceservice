@@ -99,6 +99,7 @@ kubectl -n "${TRAEFIK_NAMESPACE}" get helmchartconfig "${TRAEFIK_HELMCHARTCONFIG
 
 echo "Checking Traefik Deployment ACME DNS-01 arguments."
 deployment_yaml="$(kubectl -n "${TRAEFIK_NAMESPACE}" get deployment traefik -o yaml)"
+deployment_json="$(kubectl -n "${TRAEFIK_NAMESPACE}" get deployment traefik -o json)"
 printf '%s\n' "${deployment_yaml}" | grep -E 'certificatesresolvers|dnschallenge|acme|ovh'
 
 if ! printf '%s\n' "${deployment_yaml}" | grep -Fq "certificatesresolvers.${TRAEFIK_ACME_CERT_RESOLVER}.acme.dnschallenge=true"; then
@@ -108,6 +109,14 @@ fi
 if ! printf '%s\n' "${deployment_yaml}" | grep -Fq "certificatesresolvers.${TRAEFIK_ACME_CERT_RESOLVER}.acme.dnschallenge.provider=${TRAEFIK_ACME_DNS_PROVIDER}"; then
   fail "Traefik Deployment does not show DNS provider ${TRAEFIK_ACME_DNS_PROVIDER}."
 fi
+
+echo "Checking Traefik Deployment OVH Secret envFrom reference."
+if ! printf '%s\n' "${deployment_json}" | jq -e --arg secret_name "${TRAEFIK_OVH_DNS_SECRET_NAME}" '
+  any(.spec.template.spec.containers[]?.envFrom[]?; .secretRef.name == $secret_name)
+' >/dev/null; then
+  fail "Traefik Deployment does not reference the expected OVH Secret through envFrom."
+fi
+echo "OVH Secret envFrom reference is present."
 
 echo "Checking Traefik Service externalTrafficPolicy."
 live_external_traffic_policy="$(kubectl -n "${TRAEFIK_NAMESPACE}" get service traefik -o jsonpath='{.spec.externalTrafficPolicy}')"

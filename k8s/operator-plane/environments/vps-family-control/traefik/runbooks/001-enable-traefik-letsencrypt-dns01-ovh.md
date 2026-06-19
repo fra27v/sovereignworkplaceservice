@@ -69,6 +69,26 @@ Safe verification:
 kubectl -n kube-system get svc traefik -o jsonpath='{.spec.type}{" externalTrafficPolicy="}{.spec.externalTrafficPolicy}{"\n"}'
 ```
 
+k3s Helm reconciliation may take time after installing or updating a
+`HelmChartConfig`. The install script waits for the Traefik Service to reconcile
+to the expected `externalTrafficPolicy` value before printing follow-up
+verification commands.
+
+`externalTrafficPolicy=Local` is required and preferred here because the
+operator-artifacts IPAllowList must evaluate the real client source IP. A normal
+curl from the VPS to the public FQDN is not a localhost test; it may leave the
+host, return through the public path, and correctly receive HTTP `403` if the
+VPS public egress IP is not allowlisted.
+
+End-to-end validation for `operator-artifacts` should include:
+
+- home IP without credentials returns HTTP `401`
+- home IP with valid BasicAuth downloads successfully
+- non-allowed public path returns HTTP `403`
+
+Do not paste real BasicAuth credentials, public IPs, or curl commands containing
+real credentials.
+
 ## Execution Order
 
 1. Copy env examples to real env files:
