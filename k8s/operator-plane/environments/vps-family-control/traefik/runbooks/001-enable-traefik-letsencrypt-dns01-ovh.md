@@ -87,6 +87,18 @@ Do not paste Secret YAML with `data` values.
 
 ACME storage must not be deleted casually because it contains certificate account and issuance state.
 
+## Secret data and temporary files
+
+Never print Kubernetes Secret `.data` or full Secret YAML.
+
+Kubernetes Secret values are base64-encoded, not encrypted for display.
+
+If Secret data was printed or pasted, rotate the OVH credentials immediately.
+
+Temporary rendered files under `/tmp` must be cleaned after render or install. The render script removes temporary output by default; use `--keep-output` only for explicit local inspection.
+
+Do not paste OVH credentials or Secret contents into chat, logs, tickets, or Git.
+
 ## Scope
 
 This step does not deploy `operator-artifacts`.

@@ -7,7 +7,16 @@ traefik_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control/tra
 env_file="${traefik_dir}/traefik-acme-dns01.env"
 env_template="${traefik_dir}/traefik-acme-dns01.env.example"
 template_file="${traefik_dir}/manifests/traefik-helmchartconfig-acme-dns01-ovh.yaml.tpl"
-output_file="/tmp/traefik-helmchartconfig-acme-dns01-ovh.yaml"
+keep_output="false"
+requested_output_file=""
+output_file=""
+
+cleanup() {
+  if [[ "${keep_output}" != "true" && -n "${output_file}" && -f "${output_file}" ]]; then
+    rm -f "${output_file}"
+  fi
+}
+trap cleanup EXIT
 
 fail() {
   echo "ERROR: $*" >&2
@@ -36,6 +45,35 @@ require_var() {
   [[ -n "${value}" ]] || fail "Missing required variable: ${name}"
   [[ "${value}" != "<set-me>" ]] || fail "Variable still has placeholder value: ${name}"
 }
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --keep-output)
+      keep_output="true"
+      requested_output_file="/tmp/traefik-helmchartconfig-acme-dns01-ovh.yaml"
+      shift
+      ;;
+    --output)
+      [[ $# -ge 2 ]] || fail "--output requires a path."
+      keep_output="true"
+      requested_output_file="$2"
+      shift 2
+      ;;
+    -h|--help)
+      cat <<'USAGE'
+Usage: render-traefik-acme-dns01-ovh.sh [--keep-output] [--output <path>]
+
+Renders the Traefik HelmChartConfig to a temporary file and deletes it by
+default. Use --keep-output to keep /tmp/traefik-helmchartconfig-acme-dns01-ovh.yaml,
+or --output to keep a specific output path.
+USAGE
+      exit 0
+      ;;
+    *)
+      fail "Unknown argument: $1"
+      ;;
+  esac
+done
 
 render_template() {
   sed \
@@ -84,6 +122,13 @@ else
   TRAEFIK_ACME_CA_SERVER_ARGUMENT=""
 fi
 
+if [[ "${keep_output}" = "true" ]]; then
+  output_file="${requested_output_file}"
+  rm -f "${output_file}"
+else
+  output_file="$(mktemp /tmp/traefik-helmchartconfig-acme-dns01-ovh.XXXXXX.yaml)"
+fi
+
 render_template > "${output_file}"
 
 echo "Rendered Traefik HelmChartConfig template."
@@ -94,3 +139,6 @@ echo "ACME resolver: ${TRAEFIK_ACME_CERT_RESOLVER}"
 echo "DNS provider: ${TRAEFIK_ACME_DNS_PROVIDER}"
 echo "OVH Secret name: ${TRAEFIK_OVH_DNS_SECRET_NAME}"
 echo "No manifest was applied."
+if [[ "${keep_output}" != "true" ]]; then
+  echo "Temporary output will be removed after script completion. Use --keep-output to keep it for inspection."
+fi

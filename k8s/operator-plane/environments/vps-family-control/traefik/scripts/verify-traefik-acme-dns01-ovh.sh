@@ -36,6 +36,7 @@ require_var() {
 }
 
 command -v kubectl >/dev/null 2>&1 || fail "Missing required command: kubectl"
+command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
 [[ -f "${env_file}" ]] || missing_env_file
 
 # shellcheck source=/dev/null
@@ -54,13 +55,33 @@ for var_name in "${required_vars[@]}"; do
 done
 
 echo "Checking OVH DNS credential Secret metadata."
-kubectl -n "${TRAEFIK_NAMESPACE}" get secret "${TRAEFIK_OVH_DNS_SECRET_NAME}" \
-  -o custom-columns='NAME:.metadata.name,TYPE:.type,KEYS:.data' \
-  --no-headers
+secret_json="$(kubectl -n "${TRAEFIK_NAMESPACE}" get secret "${TRAEFIK_OVH_DNS_SECRET_NAME}" -o json)"
+secret_name="$(printf '%s\n' "${secret_json}" | jq -r '.metadata.name')"
+secret_type="$(printf '%s\n' "${secret_json}" | jq -r '.type')"
 
-echo "Secret key names:"
-kubectl -n "${TRAEFIK_NAMESPACE}" get secret "${TRAEFIK_OVH_DNS_SECRET_NAME}" \
-  -o jsonpath='{range $key,$value := .data}{printf "  %s\n" $key}{end}'
+echo "Namespace: ${TRAEFIK_NAMESPACE}"
+echo "Secret name: ${secret_name}"
+echo "Secret type: ${secret_type}"
+
+expected_secret_keys=(
+  OVH_ENDPOINT
+  OVH_APPLICATION_KEY
+  OVH_APPLICATION_SECRET
+  OVH_CONSUMER_KEY
+)
+
+for key_name in "${expected_secret_keys[@]}"; do
+  if printf '%s\n' "${secret_json}" | jq -e --arg key "${key_name}" '.data | has($key)' >/dev/null; then
+    echo "Secret key present: ${key_name}"
+  else
+    echo "Secret key missing: ${key_name}" >&2
+    missing_secret_key="true"
+  fi
+done
+
+if [[ "${missing_secret_key:-false}" = "true" ]]; then
+  fail "OVH DNS credential Secret is missing one or more expected keys."
+fi
 
 echo "Checking HelmChartConfig exists."
 kubectl -n "${TRAEFIK_NAMESPACE}" get helmchartconfig "${TRAEFIK_HELMCHARTCONFIG_NAME}" \
