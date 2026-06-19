@@ -7,6 +7,32 @@ The endpoint distributes bootstrap and configuration artifacts to tenants. It
 must not serve private keys, root tokens, recovery material, static seal keys,
 init JSON files, htpasswd files, or tenant token files.
 
+## Validated state
+
+Validated on `vps-family-control`:
+
+- Traefik ACME DNS-01 OVH works.
+- A Let's Encrypt certificate is issued for `operator-artifacts.<domain>`.
+- `operator-artifacts` runs behind Traefik on `websecure`.
+- Access is protected by IPAllowList first, then BasicAuth.
+- Allowed home IP with valid BasicAuth can download artifacts.
+- Allowed home IP without credentials returns HTTP `401`.
+- Non-allowed public path returns HTTP `403`.
+- Normal curl from the VPS to the public FQDN is not a localhost test.
+- Backend image is `nginxinc/nginx-unprivileged:stable-alpine`.
+- Container listens on `8080`; Kubernetes Service exposes port `80`.
+- Public artifacts directory is mounted read-only.
+- Private artifact directory is not mounted.
+- `.sha256` files use relative filenames and are portable.
+- Temporary rendered manifests are cleaned up.
+
+Operational notes:
+
+- If the home public IP changes, update the IPAllowList and redeploy.
+- If the token is rotated, regenerate htpasswd and reapply the deployment.
+- Let's Encrypt renewals depend on OVH DNS-01 credentials.
+- Do not paste tokens, htpasswd contents, Kubernetes Secret data, or rendered manifests.
+
 ## Prerequisites
 
 - Traefik DNS-01 OVH is configured and verified.
@@ -87,6 +113,25 @@ real public IP.
 
 If the home public IP changes, update `operator-artifacts.env`, reinstall the
 resources, and run the verification script again.
+
+The preferred operational path is:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/operator-artifacts/scripts/update-operator-artifacts-ip-allowlist.sh --home-ip <home-public-ip> --dry-run --show-masked
+
+sudo ./k8s/operator-plane/environments/vps-family-control/operator-artifacts/scripts/update-operator-artifacts-ip-allowlist.sh --home-ip <home-public-ip>
+```
+
+To replace the full allowlist explicitly:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/operator-artifacts/scripts/update-operator-artifacts-ip-allowlist.sh --set-ranges "127.0.0.1/32,::1/128,<home-public-ip>/32"
+```
+
+The update script edits the real gitignored `operator-artifacts.env` file,
+creates a timestamped backup, reapplies `operator-artifacts`, and verifies the
+deployment. Do not paste real IPs, tokens, htpasswd contents, Secret data, or
+rendered manifests into chat, logs, tickets, or Git.
 
 Localhost testing can target the VPS locally while preserving the HTTPS host:
 

@@ -2,9 +2,28 @@
 
 ## Purpose
 
-`operator-artifacts.<domain>` is the operator-plane artifact distribution endpoint.
+`operator-artifacts.<domain>` is the public HTTPS operator-plane artifact delivery endpoint for tenants.
 
 It distributes bootstrap and configuration artifacts to tenants. It is separate from `operator-vault.<domain>`.
+
+`operator-artifacts` is for public and non-secret artifacts plus authenticated delivery. It is not a secret storage system.
+
+Secrets, root tokens, recovery material, static seal keys, private keys, init JSON files, htpasswd contents, and real tenant tokens must never be served by this endpoint.
+
+## Current Implementation
+
+The current `vps-family-control` implementation uses:
+
+- Traefik public TLS termination with Let's Encrypt DNS-01 through OVH.
+- Traefik `IPAllowList` before BasicAuth.
+- BasicAuth credentials generated locally and delivered to Kubernetes as a Secret.
+- `nginxinc/nginx-unprivileged:stable-alpine` for static artifact serving.
+- Container port `8080`.
+- Kubernetes Service port `80`.
+- A read-only mount of the public artifact directory.
+- No mount of the private artifact directory.
+
+The BasicAuth Kubernetes Secret is runtime delivery only. It is not the Git source of truth. Real htpasswd contents and tenant token values remain local sensitive operational material.
 
 ## Connectivity
 
@@ -19,6 +38,8 @@ Token authentication is used initially. Real tenant tokens must not be committed
 BasicAuth through Traefik is acceptable for the first implementation.
 
 Token transfer to tenant hosts must use a secure out-of-band channel.
+
+Traefik evaluates the IP allowlist before BasicAuth. The allowlist is intended to restrict access to localhost and the operator home public IP range. Use placeholders such as `<home-public-ip>/32` in Git; never commit real public IPs.
 
 ## TLS
 
@@ -64,6 +85,8 @@ The static server must mount only the public directory read-only.
 
 The private directory must never be mounted into the artifact server pod.
 
+The private directory stores operational material such as local token files and htpasswd files. It is not part of the served artifact tree.
+
 ## Tenant Layout
 
 Tenant artifacts are separated by tenant path, for example:
@@ -82,11 +105,26 @@ This prepares the system for multiple tenants.
 
 Existing OpenBao configuration remains under the `openbao/` repository folders because those files are technology-specific. The `operator-artifacts/` folders are reserved for artifact repository configuration and operations.
 
+## Future Use
+
+The Operator CA bundle will be published through `operator-artifacts`.
+
+Tenant environments will download the Operator CA bundle from this endpoint and use it to trust private operator-plane services such as `operator-vault.<domain>`.
+
+Expected first CA bundle artifact family:
+
+```text
+operator-ca-bundle.crt
+operator-ca-bundle.sha256
+operator-ca-bundle.meta.json
+```
+
+Checksum files should use relative filenames so tenants can verify downloaded artifacts locally.
+
 ## Deferred Hardening
 
 Deferred hardening steps include:
 
-- IP allowlist.
 - Artifact signing.
 - mTLS client authentication.
 - Stronger per-tenant authorization model.
