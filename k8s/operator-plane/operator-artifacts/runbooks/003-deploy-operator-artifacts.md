@@ -34,9 +34,20 @@ The render script reads the real local `operator-artifacts.env` file and the
 local htpasswd file. It must not print token values, htpasswd contents,
 Kubernetes Secret `.data`, or `stringData`.
 
-Use `--keep-output` only for local inspection. Delete any kept manifest after
-inspection because the rendered manifest contains BasicAuth material in
-`stringData`.
+Rendered manifests may contain BasicAuth Secret material in `stringData`.
+Render and install scripts clean temporary rendered manifests by default.
+
+Use `--keep-output` only for short manual inspection. The kept rendered manifest
+uses `0600` permissions, but it still contains sensitive BasicAuth material and
+must be deleted immediately after inspection.
+
+Do not paste rendered manifests into chat, logs, tickets, or Git.
+
+Legacy cleanup for older script runs that used a predictable output path:
+
+```bash
+sudo rm -f /tmp/operator-artifacts.yaml
+```
 
 ## Install
 
@@ -51,7 +62,8 @@ The install script renders to a temporary file, applies the manifest with
 artifact directory is mounted into the Deployment.
 
 The private artifact directory must never be mounted into the artifact server
-pod.
+pod. The temporary rendered manifest is created with `0600` permissions and is
+deleted after install.
 
 ## Verify
 

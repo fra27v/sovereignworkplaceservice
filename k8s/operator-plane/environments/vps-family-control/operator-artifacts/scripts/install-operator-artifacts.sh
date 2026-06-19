@@ -8,9 +8,12 @@ env_file="${artifacts_dir}/operator-artifacts.env"
 env_template="${artifacts_dir}/operator-artifacts.env.example"
 render_script="${script_dir}/render-operator-artifacts.sh"
 rendered_file="$(mktemp /tmp/operator-artifacts.install.XXXXXX.yaml)"
+chmod 0600 "${rendered_file}"
 
 cleanup() {
-  rm -f "${rendered_file}"
+  if [[ -n "${rendered_file}" && -f "${rendered_file}" ]]; then
+    rm -f "${rendered_file}"
+  fi
 }
 trap cleanup EXIT
 
@@ -104,5 +107,6 @@ if [[ -n "${unexpected_host_paths}" ]]; then
 fi
 
 echo "operator-artifacts resources are installed and hostPath mounts are limited to the public directory."
-echo "Temporary rendered file will be removed after script completion."
+cleanup
+echo "Temporary rendered manifest was removed."
 echo "Secret data and htpasswd contents were not printed."

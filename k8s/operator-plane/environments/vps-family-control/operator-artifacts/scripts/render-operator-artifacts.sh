@@ -8,11 +8,12 @@ env_file="${artifacts_dir}/operator-artifacts.env"
 env_template="${artifacts_dir}/operator-artifacts.env.example"
 template_file="${artifacts_dir}/manifests/operator-artifacts.yaml.tpl"
 keep_output="false"
+explicit_output="false"
 requested_output_file=""
 output_file=""
 
 cleanup() {
-  if [[ "${keep_output}" != "true" && -n "${output_file}" && -f "${output_file}" ]]; then
+  if [[ "${keep_output}" != "true" && "${explicit_output}" != "true" && -n "${output_file}" && -f "${output_file}" ]]; then
     rm -f "${output_file}"
   fi
 }
@@ -66,12 +67,11 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --keep-output)
       keep_output="true"
-      requested_output_file="/tmp/operator-artifacts.yaml"
       shift
       ;;
     --output)
       [[ $# -ge 2 ]] || fail "--output requires a path."
-      keep_output="true"
+      explicit_output="true"
       requested_output_file="$2"
       shift 2
       ;;
@@ -80,8 +80,11 @@ while [[ $# -gt 0 ]]; do
 Usage: render-operator-artifacts.sh [--keep-output] [--output <path>]
 
 Renders the operator-artifacts manifest to a temporary file and deletes it by
-default. Use --keep-output to keep /tmp/operator-artifacts.yaml, or --output
-to keep a specific output path.
+default. Use --keep-output to keep a non-predictable mktemp output file, or
+--output to write a specific output path for a caller such as the install script.
+
+Rendered manifests can contain BasicAuth Secret material. Do not print or paste
+their contents.
 USAGE
       exit 0
       ;;
@@ -118,7 +121,7 @@ htpasswd_file="${OPERATOR_ARTIFACTS_PRIVATE_DIR}/tokens/${OPERATOR_ARTIFACTS_TEN
 
 OPERATOR_ARTIFACTS_BASICAUTH_USERS="$(yaml_escape_double_quoted < "${htpasswd_file}")"
 
-if [[ "${keep_output}" = "true" ]]; then
+if [[ "${explicit_output}" = "true" ]]; then
   output_file="${requested_output_file}"
   rm -f "${output_file}"
 else
@@ -126,6 +129,7 @@ else
 fi
 
 render_template > "${output_file}"
+chmod 0600 "${output_file}"
 
 echo "Rendered operator-artifacts manifest."
 echo "Output file: ${output_file}"
@@ -135,7 +139,14 @@ echo "Public hostname: configured"
 echo "Public directory: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}"
 echo "BasicAuth Secret name: ${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}"
 echo "The htpasswd contents were not printed."
+echo "Rendered Secret material was not printed."
 echo "No manifest was applied."
-if [[ "${keep_output}" != "true" ]]; then
+if [[ "${keep_output}" = "true" ]]; then
+  echo "WARNING: This rendered manifest may contain sensitive BasicAuth Secret material."
+  echo "WARNING: Delete ${output_file} immediately after local inspection."
+  echo "Kept rendered manifest permissions: 0600"
+elif [[ "${explicit_output}" = "true" ]]; then
+  echo "Output file permissions: 0600"
+else
   echo "Temporary output will be removed after script completion. Use --keep-output to keep it for local inspection."
 fi
