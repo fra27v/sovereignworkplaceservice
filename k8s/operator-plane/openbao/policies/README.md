@@ -9,3 +9,5 @@ The `.hcl.example` files in this directory are Global OpenBao operator-plane exa
 Versioned policies:
 
 - `family-infra-01-transit-autounseal.hcl`: minimal Global OpenBao transit encrypt/decrypt policy for the `family-infra-01-autounseal` key used by Tenant OpenBao auto-unseal.
+- `operator-plane-secret-sync.hcl`: read-only policy for the in-cluster operator-plane secret sync Job.
+- `operator-plane-secret-import.hcl`: limited future importer policy for bootstrap import of operator-plane KV entries.

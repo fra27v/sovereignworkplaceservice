@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operator-secret-sync
+  labels:
+    app.kubernetes.io/name: operator-secret-sync
+    app.kubernetes.io/part-of: operator-plane
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operator-artifacts
+  labels:
+    app.kubernetes.io/name: operator-artifacts
+    app.kubernetes.io/part-of: operator-plane

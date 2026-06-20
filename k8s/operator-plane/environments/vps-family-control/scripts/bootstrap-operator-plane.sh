@@ -7,6 +7,7 @@ env_dir="$(cd -- "${script_dir}/.." && pwd)"
 dry_run="false"
 run_traefik="false"
 run_openbao="false"
+run_operator_secret_sync="false"
 run_operator_artifacts="false"
 
 summary_ok=()
@@ -15,7 +16,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-artifacts] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync] [--operator-artifacts] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -24,6 +25,7 @@ Options:
   --all                 Run all currently supported phases.
   --traefik             Run Traefik ACME DNS-01 OVH bootstrap.
   --openbao             Run Global OpenBao baseline verification only.
+  --operator-secret-sync Import/configure/apply operator-plane secret sync.
   --operator-artifacts  Run operator-artifacts bootstrap.
   --dry-run             Print commands without running component scripts.
   --help                Show this help.
@@ -143,6 +145,22 @@ EOF
   fi
 }
 
+phase_operator_secret_sync() {
+  echo
+  echo "== operator-secret-sync =="
+  local openbao_scripts="${env_dir}/openbao/scripts"
+  local sync_scripts="${env_dir}/operator-secret-sync/scripts"
+  local fail_count_before="${#summary_fail[@]}"
+
+  run_if_executable "operator-plane bootstrap secret import" "${openbao_scripts}/import-operator-plane-bootstrap-secrets.sh" "false"
+  run_if_executable "OpenBao Kubernetes auth for secret sync" "${openbao_scripts}/configure-openbao-kubernetes-auth-for-secret-sync.sh" "false"
+  run_if_executable "operator-secret-sync install" "${sync_scripts}/install-operator-secret-sync.sh" "false"
+
+  if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
+    ok "operator-secret-sync phase completed"
+  fi
+}
+
 phase_operator_artifacts() {
   echo
   echo "== operator-artifacts =="
@@ -200,6 +218,7 @@ while [[ "$#" -gt 0 ]]; do
     --all)
       run_traefik="true"
       run_openbao="true"
+      run_operator_secret_sync="true"
       run_operator_artifacts="true"
       ;;
     --traefik)
@@ -207,6 +226,9 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --openbao)
       run_openbao="true"
+      ;;
+    --operator-secret-sync)
+      run_operator_secret_sync="true"
       ;;
     --operator-artifacts)
       run_operator_artifacts="true"
@@ -227,19 +249,23 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_artifacts}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" ]]; then
   usage >&2
   exit 1
 fi
 
 phase_prerequisites
 
-if [[ "${run_traefik}" = "true" ]]; then
-  phase_traefik
-fi
-
 if [[ "${run_openbao}" = "true" ]]; then
   phase_openbao_global
+fi
+
+if [[ "${run_operator_secret_sync}" = "true" ]]; then
+  phase_operator_secret_sync
+fi
+
+if [[ "${run_traefik}" = "true" ]]; then
+  phase_traefik
 fi
 
 if [[ "${run_operator_artifacts}" = "true" ]]; then

@@ -12,3 +12,5 @@
 !values/*.yaml
 !scripts/
 !scripts/*.sh
+!manifests/
+!manifests/*.yaml

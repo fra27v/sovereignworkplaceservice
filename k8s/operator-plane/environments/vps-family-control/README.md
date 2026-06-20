@@ -22,9 +22,17 @@ Manual component scripts remain available under `traefik/scripts`,
 operator interface is the environment bootstrap script plus the environment
 verification script.
 
-Global OpenBao is the operator-plane secret manager. Kubernetes Secrets are
-runtime projections or bootstrap imports, not the long-term source of truth.
-Local `.env` files are bootstrap, import, and recovery material only.
+Global OpenBao KV is the operator-plane source of truth for secrets and
+sensitive runtime configuration. Kubernetes Secrets are runtime projections or
+bootstrap imports, not the long-term source of truth. Local `.env` files are
+bootstrap, import, and recovery material only.
+
+In-cluster operator-plane sync uses OpenBao Kubernetes auth. Do not store static
+OpenBao tokens in Kubernetes Secrets.
 
 Operator PKI is the next phase. This environment does not yet create an
-Operator CA or expose `operator-vault`.
+Operator CA or expose `operator-vault`. Operator PKI will cleanly solve OpenBao
+CA bundle trust for in-cluster clients.
+
+Do not run a destructive reinstall test until all debug points and Operator PKI
+are complete.
