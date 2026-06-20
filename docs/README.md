@@ -18,6 +18,7 @@ Do not include secrets, tokens, `role_id`, `secret_id`, private keys, certificat
 - [Backup and restore baseline](backup-restore.md)
 - [k3s migration plan](k3s-migration-plan.md)
 - [OpenBao and Valkey migration notes](openbao-valkey-migration-notes.md)
+- [Operator plane architecture](architecture/operator-plane.md)
 
 ## ADR
 
