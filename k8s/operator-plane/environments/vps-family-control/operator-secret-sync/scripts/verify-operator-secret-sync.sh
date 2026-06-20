@@ -96,6 +96,21 @@ check_job() {
   fi
 }
 
+check_openbao_ca_bundle() {
+  if ! kubectl -n operator-secret-sync get configmap openbao-ca-bundle >/dev/null 2>&1; then
+    fail_component "ConfigMap operator-secret-sync/openbao-ca-bundle is missing"
+    return 0
+  fi
+
+  local has_ca_key
+  has_ca_key="$(kubectl -n operator-secret-sync get configmap openbao-ca-bundle -o json | jq -r 'if (.data | has("ca.crt")) then "yes" else "no" end')"
+  if [[ "${has_ca_key}" = "yes" ]]; then
+    ok "ConfigMap operator-secret-sync/openbao-ca-bundle contains key ca.crt"
+  else
+    fail_component "ConfigMap operator-secret-sync/openbao-ca-bundle is missing key ca.crt"
+  fi
+}
+
 print_summary() {
   echo
   echo "== operator-secret-sync summary =="
@@ -131,6 +146,7 @@ check_resource "RoleBinding kube-system/operator-plane-secret-sync" -n kube-syst
 check_resource "Role operator-artifacts/operator-plane-secret-sync" -n operator-artifacts get role operator-plane-secret-sync
 check_resource "RoleBinding operator-artifacts/operator-plane-secret-sync" -n operator-artifacts get rolebinding operator-plane-secret-sync
 check_resource "ConfigMap operator-secret-sync/operator-plane-secret-sync-script" -n operator-secret-sync get configmap operator-plane-secret-sync-script
+check_openbao_ca_bundle
 check_job
 
 expect_exact_keys kube-system traefik-ovh-dns-credentials \

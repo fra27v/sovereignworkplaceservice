@@ -4,6 +4,7 @@ umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+parser_lib="${script_dir}/lib/bootstrap-secrets-parser.sh"
 
 env_file="${env_dir}/operator-plane.bootstrap-secrets.env"
 dry_run="false"
@@ -59,13 +60,6 @@ is_mode_private() {
   local other_perms="${mode: -1:1}"
 
   [[ "${group_perms}" = "0" && "${other_perms}" = "0" ]]
-}
-
-require_var() {
-  local name="$1"
-  local value="${!name:-}"
-
-  [[ -n "${value}" ]] || fail "Missing required variable in env file: ${name}"
 }
 
 path_exists() {
@@ -151,27 +145,21 @@ require_command jq
 require_command kubectl
 
 [[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
+[[ -s "${parser_lib}" ]] || fail "Missing parser library: ${parser_lib}"
 
 if [[ "${dry_run}" != "true" ]]; then
   mode="$(file_mode "${env_file}")"
   is_mode_private "${mode}" || fail "Env file permissions are too open (${mode}); expected 0600 or stricter: ${env_file}"
 fi
 
-set -a
-# shellcheck source=/dev/null
-source "${env_file}"
-set +a
-
-require_var OVH_ENDPOINT
-require_var OVH_APPLICATION_KEY
-require_var OVH_APPLICATION_SECRET
-require_var OVH_CONSUMER_KEY
-require_var OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME
-require_var OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN
-require_var OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME
-require_var OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
+# shellcheck source=lib/bootstrap-secrets-parser.sh
+source "${parser_lib}"
+parse_bootstrap_secrets_file "${env_file}"
 
 if [[ "${dry_run}" = "true" ]]; then
+  echo "Env file: ${env_file}"
+  echo "Accepted key names:"
+  printf '  - %s\n' "${BOOTSTRAP_SECRET_ACCEPTED_KEYS[@]}"
   print_target "Traefik OVH DNS-01" "${traefik_path}" \
     OVH_ENDPOINT OVH_APPLICATION_KEY OVH_APPLICATION_SECRET OVH_CONSUMER_KEY
   print_target "operator-artifacts tenant access" "${artifacts_path}" \
@@ -193,6 +181,15 @@ trap cleanup EXIT
 traefik_json="${tmp_dir}/traefik-ovh-dns01.json"
 artifacts_json="${tmp_dir}/operator-artifacts-family-infra-01.json"
 artifacts_config_json="${tmp_dir}/operator-artifacts-family-infra-01-config.json"
+
+export OVH_ENDPOINT="${BOOTSTRAP_SECRETS[OVH_ENDPOINT]}"
+export OVH_APPLICATION_KEY="${BOOTSTRAP_SECRETS[OVH_APPLICATION_KEY]}"
+export OVH_APPLICATION_SECRET="${BOOTSTRAP_SECRETS[OVH_APPLICATION_SECRET]}"
+export OVH_CONSUMER_KEY="${BOOTSTRAP_SECRETS[OVH_CONSUMER_KEY]}"
+export OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME]}"
+export OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN]}"
+export OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME]}"
+export OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES]}"
 
 jq -n '{
   OVH_ENDPOINT: env.OVH_ENDPOINT,

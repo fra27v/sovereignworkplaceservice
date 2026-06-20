@@ -28,6 +28,8 @@ require_command openssl
 
 [[ -f "${service_account_token_file}" ]] || fail "Missing mounted ServiceAccount token."
 [[ -f "${BAO_CACERT}" ]] || fail "Missing OpenBao CA bundle: ${BAO_CACERT}"
+[[ -s "${BAO_CACERT}" ]] || fail "OpenBao CA bundle is empty: ${BAO_CACERT}"
+[[ -r "${BAO_CACERT}" ]] || fail "OpenBao CA bundle is not readable: ${BAO_CACERT}"
 
 tmp_dir="$(mktemp -d)"
 cleanup() {

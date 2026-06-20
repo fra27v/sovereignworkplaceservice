@@ -78,4 +78,10 @@ Kubernetes Secrets are runtime projections or bootstrap imports. Local `.env` fi
 
 The in-cluster sync Job authenticates to OpenBao with Kubernetes auth through the `operator-plane-secret-sync` ServiceAccount and role. It does not use a static OpenBao token.
 
-Operator PKI will cleanly solve OpenBao CA bundle trust for in-cluster clients. Until then, the OpenBao CA bundle projection must be handled explicitly and safely.
+The sync script remains a normal versioned repository file. The install script generates and applies the runtime ConfigMap from that script, so changing sync logic does not require rebuilding an image.
+
+No custom sync image is created at this stage and no registry is introduced at this stage. The Job must use a pinned standard runner image satisfying `operator-secret-sync/image-contract.md`. The runner image is not selected yet, and real install fails before applying the Job until one is selected.
+
+The bootstrap env parser is strict and does not execute shell from `operator-plane.bootstrap-secrets.env`.
+
+Operator PKI will cleanly solve OpenBao CA bundle trust for in-cluster clients. Until then, the OpenBao CA bundle projection is required and fail-closed: install and verify check only ConfigMap metadata and key presence, and the sync script exits before OpenBao login if the mounted CA bundle is missing, empty, or unreadable.

@@ -45,6 +45,8 @@ The following local files are bootstrap, import, and recovery material only:
 
 They must stay ignored by Git. The real `operator-plane.bootstrap-secrets.env` file should be copied from `operator-plane.bootstrap-secrets.env.example`, kept at `0600`, imported once, and retained only as bootstrap/import/recovery material. After import, OpenBao KV is the source of truth.
 
+The import script parses `operator-plane.bootstrap-secrets.env` as data. It intentionally does not `source` the file and does not execute shell syntax. The parser accepts only known `KEY=VALUE` entries and rejects duplicate keys, unknown keys, `export`, command substitution, backticks, multiline values, missing required keys, and empty required values.
+
 ## Kubernetes Auth
 
 The sync Job must use OpenBao Kubernetes auth:
@@ -64,7 +66,15 @@ The OpenBao server ServiceAccount needs TokenReview permission through `system:a
 
 In-cluster clients must verify OpenBao TLS. The secret sync Job includes a placeholder CA bundle mount for `openbao-ca-bundle`.
 
+The CA bundle is fail-closed: install preflight requires the `operator-secret-sync/openbao-ca-bundle` ConfigMap with a non-empty `ca.crt` key, and the sync script exits before OpenBao login if `/var/run/openbao-ca/ca.crt` is missing, empty, or unreadable.
+
 Until Operator PKI is implemented, the current bootstrap CA or certificate authority bundle must be projected by an explicit safe procedure. Operator PKI will cleanly solve OpenBao CA bundle trust for in-cluster clients.
+
+## Runner Image
+
+No custom sync image is created at this stage and no registry is introduced at this stage. The Job must use a pinned standard runner image satisfying `operator-secret-sync/image-contract.md`.
+
+The runner image is not selected yet. The Job manifest uses an invalid placeholder and install preflight fails before applying the Job until a valid pinned standard runner image is selected. The sync script remains a normal versioned repository file and the ConfigMap is generated from that file, so changing sync logic does not require rebuilding an image.
 
 ## Import And Sync TODO
 

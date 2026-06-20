@@ -41,20 +41,24 @@ It creates or updates:
 
 For `operator-artifacts`, the script derives the `users` htpasswd line inside the pod from `username` and `token`. The chosen implementation uses `openssl passwd -apr1 -stdin` because it avoids passing the token as a command-line argument and keeps the required image small. The generated htpasswd line is never echoed.
 
-## Image Contract
+## Runner Image Contract
 
-The Job image is explicit: `operator-secret-sync:0.1.0`.
+No custom image is created at this stage and no image registry is introduced at this stage.
+
+The Job must use a pinned standard runner image that satisfies `image-contract.md`. The `latest` tag is forbidden, and digest pinning is preferred once the selected image is finalized.
+
+The runner image is not selected yet. `job.yaml` intentionally uses an invalid placeholder image reference, and the install script fails before applying the Job until a valid pinned standard runner image is selected.
 
 That image must provide:
 
-- `/usr/local/bin/bash`
+- `bash`
 - `curl`
 - `jq`
 - `kubectl`
 - `openssl`
 - CA certificates
 
-The image is intentionally a small local or private tool image contract for this sync Job. Do not add static OpenBao tokens to the image or to Kubernetes Secrets.
+The image must not install packages or download binaries at pod startup. Updating the runner image is a separate operational step. A custom image may be reconsidered later only if no acceptable standard runner image satisfies the contract.
 
 The sync logic is kept as a normal repository script at:
 
@@ -63,6 +67,14 @@ scripts/sync-operator-plane-secrets.sh
 ```
 
 The install script creates the runtime ConfigMap from that file with `kubectl create configmap --from-file ... --dry-run=client -o yaml | kubectl apply -f -`. This keeps the script easy to review and lint without requiring an image build for every sync logic change.
+
+Use `scripts/check-runner-image-contract.sh --image <image-ref> --dry-run` to review a candidate image reference without pulling or running it. Real checks use a local Docker-compatible runtime and do not require secrets.
+
+## Bootstrap Env Parser
+
+The OpenBao bootstrap import script uses a strict parser for `operator-plane.bootstrap-secrets.env`. It does not `source` the env file and does not execute shell syntax from it.
+
+The parser accepts only blank lines, full-line comments, and `KEY=VALUE` entries for known required keys. It rejects duplicate keys, unknown keys, `export KEY=VALUE`, command substitution, backticks, multiline values, missing required keys, and empty required values.
 
 ## OpenBao TLS
 
@@ -74,11 +86,13 @@ https://openbao-global.openbao-operator.svc:8200
 
 It does not use insecure TLS skip verification by default.
 
-The manifest includes a placeholder ConfigMap volume named `openbao-ca-bundle` mounted at:
+The manifest requires a ConfigMap volume named `openbao-ca-bundle` mounted at:
 
 ```text
 /var/run/openbao-ca/ca.crt
 ```
+
+The install script preflights that `operator-secret-sync/openbao-ca-bundle` exists and contains a non-empty `ca.crt` key before applying the Job. The verify script checks the ConfigMap and key name only. Certificate contents are never printed.
 
 Until Operator PKI is implemented, the current bootstrap CA or certificate authority bundle must be projected into that ConfigMap by an explicit, safe procedure. Operator PKI will cleanly solve OpenBao CA bundle trust for in-cluster clients.
 

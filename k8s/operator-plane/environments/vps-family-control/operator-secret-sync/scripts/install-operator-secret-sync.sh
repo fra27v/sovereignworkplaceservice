@@ -7,6 +7,9 @@ namespace="operator-secret-sync"
 job_name="operator-plane-secret-sync"
 configmap_name="operator-plane-secret-sync-script"
 sync_script="${sync_dir}/scripts/sync-operator-plane-secrets.sh"
+job_manifest="${sync_dir}/job.yaml"
+ca_configmap_name="openbao-ca-bundle"
+ca_configmap_key="ca.crt"
 dry_run="false"
 
 usage() {
@@ -64,6 +67,44 @@ apply_sync_script_configmap() {
     -o yaml | kubectl apply -f -
 }
 
+preflight_runner_image() {
+  local image_ref
+
+  image_ref="$(awk '
+    $1 == "image:" {
+      print $2
+      exit
+    }
+  ' "${job_manifest}")"
+
+  [[ -n "${image_ref}" ]] || fail "Could not find runner image in ${job_manifest}."
+  case "${image_ref}" in
+    REPLACE-WITH-PINNED-STANDARD-RUNNER-IMAGE:*|"")
+      if [[ "${dry_run}" = "true" ]]; then
+        echo "DRY-RUN: runner image is not selected; real install would fail before applying the Job"
+        return 0
+      fi
+      fail "Runner image is not selected. Choose a pinned standard runner image that satisfies operator-secret-sync/image-contract.md before applying the Job."
+      ;;
+    *:latest|*:latest@*)
+      fail "Runner image uses :latest, which is forbidden: ${image_ref}"
+      ;;
+  esac
+}
+
+preflight_openbao_ca_bundle() {
+  if [[ "${dry_run}" = "true" ]]; then
+    echo "DRY-RUN: would verify ConfigMap ${namespace}/${ca_configmap_name} contains key ${ca_configmap_key}"
+    return 0
+  fi
+
+  echo "Checking OpenBao CA bundle ConfigMap metadata."
+  kubectl -n "${namespace}" get configmap "${ca_configmap_name}" >/dev/null
+  kubectl -n "${namespace}" get configmap "${ca_configmap_name}" -o json \
+    | jq -e --arg key "${ca_configmap_key}" '(.data[$key] // "") != ""' >/dev/null \
+    || fail "ConfigMap ${namespace}/${ca_configmap_name} is missing non-empty key ${ca_configmap_key}."
+}
+
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --dry-run)
@@ -81,22 +122,27 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 require_command kubectl
+require_command awk
+require_command grep
+require_command jq
 
 apply_file "${sync_dir}/namespace.yaml"
 apply_file "${sync_dir}/serviceaccount.yaml"
 apply_file "${sync_dir}/rbac.yaml"
 apply_sync_script_configmap
+preflight_runner_image
+preflight_openbao_ca_bundle
 
 if [[ "${dry_run}" = "true" ]]; then
   echo "DRY-RUN: would delete old Job ${namespace}/${job_name} if present"
-  echo "DRY-RUN: would apply ${sync_dir}/job.yaml"
+  echo "DRY-RUN: would apply ${job_manifest}"
   exit 0
 fi
 
 echo "+ kubectl -n ${namespace} delete job ${job_name} --ignore-not-found"
 kubectl -n "${namespace}" delete job "${job_name}" --ignore-not-found
 
-apply_file "${sync_dir}/job.yaml"
+apply_file "${job_manifest}"
 
 echo "operator-secret-sync Job was applied."
 echo "Secret values were not printed."
