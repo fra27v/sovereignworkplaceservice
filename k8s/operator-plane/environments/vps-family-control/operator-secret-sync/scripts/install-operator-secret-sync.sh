@@ -69,6 +69,7 @@ apply_sync_script_configmap() {
 
 preflight_runner_image() {
   local image_ref
+  local image_last_component
 
   image_ref="$(awk '
     $1 == "image:" {
@@ -90,6 +91,11 @@ preflight_runner_image() {
       fail "Runner image uses :latest, which is forbidden: ${image_ref}"
       ;;
   esac
+
+  image_last_component="${image_ref##*/}"
+  if [[ "${image_ref}" != *@sha256:* && "${image_last_component}" != *:* ]]; then
+    fail "Runner image must be pinned by tag or digest: ${image_ref}"
+  fi
 }
 
 preflight_openbao_ca_bundle() {
@@ -101,7 +107,7 @@ preflight_openbao_ca_bundle() {
   echo "Checking OpenBao CA bundle ConfigMap metadata."
   kubectl -n "${namespace}" get configmap "${ca_configmap_name}" >/dev/null
   kubectl -n "${namespace}" get configmap "${ca_configmap_name}" -o json \
-    | jq -e --arg key "${ca_configmap_key}" '(.data[$key] // "") != ""' >/dev/null \
+    | jq -e --arg key "${ca_configmap_key}" '((.data // {})[$key] // "") != ""' >/dev/null \
     || fail "ConfigMap ${namespace}/${ca_configmap_name} is missing non-empty key ${ca_configmap_key}."
 }
 

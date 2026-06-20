@@ -103,7 +103,7 @@ check_openbao_ca_bundle() {
   fi
 
   local has_ca_key
-  has_ca_key="$(kubectl -n operator-secret-sync get configmap openbao-ca-bundle -o json | jq -r 'if (.data | has("ca.crt")) then "yes" else "no" end')"
+  has_ca_key="$(kubectl -n operator-secret-sync get configmap openbao-ca-bundle -o json | jq -r 'if ((.data // {}) | has("ca.crt")) then "yes" else "no" end')"
   if [[ "${has_ca_key}" = "yes" ]]; then
     ok "ConfigMap operator-secret-sync/openbao-ca-bundle contains key ca.crt"
   else

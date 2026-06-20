@@ -31,6 +31,7 @@ require_command() {
 
 reject_latest() {
   local ref="$1"
+  local last_component
 
   case "${ref}" in
     *:latest|*:latest@*)
@@ -38,7 +39,8 @@ reject_latest() {
       ;;
   esac
 
-  if [[ "${ref}" != *@sha256:* && "${ref}" != *:* ]]; then
+  last_component="${ref##*/}"
+  if [[ "${ref}" != *@sha256:* && "${last_component}" != *:* ]]; then
     fail "Image reference must be pinned by tag or digest."
   fi
 }
