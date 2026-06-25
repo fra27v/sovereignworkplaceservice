@@ -19,13 +19,30 @@ The runner image must provide:
 - `jq`
 - `kubectl`
 - `openssl`
+- `openssl passwd -apr1` support
 - CA certificates
-- a tool or method for htpasswd-compatible BasicAuth hash generation
 
 The current sync script uses `openssl passwd -apr1 -stdin` for htpasswd-compatible BasicAuth hash generation.
+
+## Optional Tools
+
+The runner image may also provide:
+
+- `htpasswd`
+
+`htpasswd` is optional when `openssl passwd -apr1` is available and verified.
 
 ## Selection State
 
 The runner image is not selected yet. `job.yaml` intentionally contains an invalid placeholder image reference so install preflight fails before execution.
 
 Before running the sync Job, select a pinned standard runner image that satisfies this contract and update `job.yaml`.
+
+Validate the candidate without secrets:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>' --dry-run
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>'
+```
+
+The first command checks only the reference shape and prints safe metadata. The second command uses the local container runtime to verify the required tools. Do not use `latest`.

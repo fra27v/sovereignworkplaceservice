@@ -30,9 +30,15 @@ bootstrap, import, and recovery material only.
 In-cluster operator-plane sync uses OpenBao Kubernetes auth. Do not store static
 OpenBao tokens in Kubernetes Secrets.
 
-Operator PKI is the next phase. This environment does not yet create an
-Operator CA or expose `operator-vault`. Operator PKI will cleanly solve OpenBao
-CA bundle trust for in-cluster clients.
+Operator PKI foundation files are present under `operator-pki/`. They configure
+an OpenBao-managed Operator CA and export only the public CA bundle. They do not
+yet issue or install the final `operator-vault` runtime TLS certificate and do
+not expose `operator-vault`.
 
-Do not run a destructive reinstall test until all debug points and Operator PKI
-are complete.
+The exported Operator CA bundle is the future trust source for in-cluster
+clients such as `operator-secret-sync`. The sync runner image is still not
+selected, and the sync Job remains blocked by install preflight until a pinned
+standard runner image is validated.
+
+Do not run a destructive reinstall test until Operator PKI, operator-vault TLS,
+artifact publication, and final debug points are complete.

@@ -72,7 +72,8 @@ reject_latest "${image_ref}"
 echo "Runner image candidate: ${image_ref}"
 echo "Required commands: bash curl jq kubectl openssl"
 echo "Required data: CA certificates"
-echo "Required hash method: openssl passwd -apr1 -stdin or equivalent"
+echo "Required hash method: openssl passwd -apr1 -stdin"
+echo "Optional hash tool: htpasswd"
 
 if [[ "${dry_run}" = "true" ]]; then
   echo "DRY-RUN: image was not pulled or run."

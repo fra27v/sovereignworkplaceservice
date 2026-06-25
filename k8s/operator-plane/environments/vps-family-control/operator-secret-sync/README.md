@@ -56,7 +56,10 @@ That image must provide:
 - `jq`
 - `kubectl`
 - `openssl`
+- `openssl passwd -apr1` support
 - CA certificates
+
+`htpasswd` is optional because the current sync script uses `openssl passwd -apr1 -stdin` for BasicAuth hash generation.
 
 The image must not install packages or download binaries at pod startup. Updating the runner image is a separate operational step. A custom image may be reconsidered later only if no acceptable standard runner image satisfies the contract.
 
@@ -68,7 +71,16 @@ scripts/sync-operator-plane-secrets.sh
 
 The install script creates the runtime ConfigMap from that file with `kubectl create configmap --from-file ... --dry-run=client -o yaml | kubectl apply -f -`. This keeps the script easy to review and lint without requiring an image build for every sync logic change.
 
-Use `scripts/check-runner-image-contract.sh --image <image-ref> --dry-run` to review a candidate image reference without pulling or running it. Real checks use a local Docker-compatible runtime and do not require secrets.
+Use these commands to validate a candidate image reference before replacing the placeholder:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>' --dry-run
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>'
+```
+
+The dry run does not pull or run anything. The real check uses a local Docker-compatible runtime and does not require secrets.
+
+Future vulnerability management means selecting an updated pinned image reference, rerunning the contract check, updating `job.yaml`, and reapplying the Job through the normal install flow. It does not require changing the sync script unless the tool contract changes.
 
 ## Bootstrap Env Parser
 

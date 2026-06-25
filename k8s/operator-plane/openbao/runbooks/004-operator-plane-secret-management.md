@@ -10,7 +10,8 @@ Global OpenBao KV is the operator-plane source of truth for secrets and sensitiv
 
 Kubernetes workloads authenticate to OpenBao through Kubernetes auth. Do not store static OpenBao tokens in Kubernetes Secrets.
 
-OpenBao transit keys and future PKI CA keys are OpenBao-managed state. They are not KV secrets and must not be exported into Git or local runbooks.
+OpenBao transit keys and PKI CA keys are OpenBao-managed state. They are not KV
+secrets and must not be exported into Git or local runbooks.
 
 ## OpenBao KV Paths
 
@@ -68,13 +69,25 @@ In-cluster clients must verify OpenBao TLS. The secret sync Job includes a place
 
 The CA bundle is fail-closed: install preflight requires the `operator-secret-sync/openbao-ca-bundle` ConfigMap with a non-empty `ca.crt` key, and the sync script exits before OpenBao login if `/var/run/openbao-ca/ca.crt` is missing, empty, or unreadable.
 
-Until Operator PKI is implemented, the current bootstrap CA or certificate authority bundle must be projected by an explicit safe procedure. Operator PKI will cleanly solve OpenBao CA bundle trust for in-cluster clients.
+Operator PKI is the future source for this CA bundle. The first Operator PKI
+foundation creates or verifies the OpenBao-managed Operator CA and exports only
+the public CA bundle, but projection into the `operator-secret-sync` namespace is
+a separate safe procedure. Until that projection exists, the sync Job remains
+fail-closed.
+
+The Operator CA private key remains inside OpenBao. Future `operator-vault`
+leaf private keys are generated only during issuance or rotation and later
+written safely to the runtime OpenBao TLS path.
 
 ## Runner Image
 
 No custom sync image is created at this stage and no registry is introduced at this stage. The Job must use a pinned standard runner image satisfying `operator-secret-sync/image-contract.md`.
 
-The runner image is not selected yet. The Job manifest uses an invalid placeholder and install preflight fails before applying the Job until a valid pinned standard runner image is selected. The sync script remains a normal versioned repository file and the ConfigMap is generated from that file, so changing sync logic does not require rebuilding an image.
+The runner image is not selected yet. The Job manifest uses an invalid placeholder and install preflight fails before applying the Job until a valid pinned standard runner image is selected. The runner must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `openssl passwd -apr1` support, and CA certificates. `htpasswd` is optional.
+
+Validate a candidate with `operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>' --dry-run` and then the same command without `--dry-run`. The real check uses a local Docker-compatible runtime and does not require secrets.
+
+The sync script remains a normal versioned repository file and the ConfigMap is generated from that file, so changing sync logic does not require rebuilding an image. Updating the runner image for vulnerability management is a separate maintenance action: choose an updated pinned reference, rerun the contract check, update `job.yaml`, and then apply through the normal install flow.
 
 ## Import And Sync TODO
 
@@ -82,5 +95,6 @@ Future work:
 
 - Retire or archive local bootstrap files safely after OpenBao-backed sync is verified.
 - Keep OpenBao transit keys as OpenBao-managed state.
-- Implement the Operator PKI/CA as OpenBao-managed PKI state, not KV data.
-- Do not run a destructive reinstall test until all debug points and Operator PKI are complete.
+- Project the Operator PKI public CA bundle safely for in-cluster clients.
+- Issue and install `operator-vault` runtime TLS from Operator PKI.
+- Do not run a destructive reinstall test until Operator PKI, operator-vault TLS, artifact publication, and final debug points are complete.

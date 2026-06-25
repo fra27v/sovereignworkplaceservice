@@ -24,15 +24,20 @@ The bootstrap entrypoint currently supports:
 
 Global OpenBao install, initialization, transit setup, and audit setup remain delegated to their explicit component runbooks until stable environment-level entrypoints are validated.
 
+Operator PKI foundation scripts are present under `operator-pki/scripts`, but
+they are not yet wired into the environment bootstrap entrypoint. Run them only
+from the Operator PKI runbook when intentionally configuring that phase.
+
 ## Current TODO Phases
 
 Future work:
 
-- Operator PKI
+- Wire Operator PKI into the environment bootstrap flow after manual validation
+- Issue and install `operator-vault` runtime TLS from Operator PKI
 - `operator-vault` TCP passthrough through Traefik
 - final destructive reinstall test
 
-Do not run destructive wipe behavior or destructive reinstall tests until all debug points and Operator PKI are complete.
+Do not run destructive wipe behavior or destructive reinstall tests until Operator PKI, operator-vault TLS, artifact publication, and final debug points are complete.
 
 ## Safe Examples
 
@@ -72,7 +77,12 @@ Run read-only verification:
 
 ## Secret Authority
 
-Global OpenBao KV is the operator-plane source of truth for secrets and sensitive runtime configuration. It will also host the Operator PKI/CA in the next phase.
+Global OpenBao KV is the operator-plane source of truth for secrets and sensitive runtime configuration.
+
+Global OpenBao also hosts the Operator PKI/CA as OpenBao-managed PKI state, not
+KV data. The CA private key remains inside OpenBao. The first Operator PKI
+foundation exports only the public CA bundle and checksum for future trust
+distribution.
 
 Kubernetes Secrets are runtime projections or bootstrap imports. Local `.env` files are bootstrap, import, and recovery material only.
 
@@ -82,6 +92,15 @@ The sync script remains a normal versioned repository file. The install script g
 
 No custom sync image is created at this stage and no registry is introduced at this stage. The Job must use a pinned standard runner image satisfying `operator-secret-sync/image-contract.md`. The runner image is not selected yet, and real install fails before applying the Job until one is selected.
 
+Validate a candidate runner image with:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>' --dry-run
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>'
+```
+
+The runner image must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `openssl passwd -apr1` support, and CA certificates. Future vulnerability management means updating the pinned image reference and rerunning the contract check; changing sync logic updates the script and generated ConfigMap, not the image.
+
 The bootstrap env parser is strict and does not execute shell from `operator-plane.bootstrap-secrets.env`.
 
-Operator PKI will cleanly solve OpenBao CA bundle trust for in-cluster clients. Until then, the OpenBao CA bundle projection is required and fail-closed: install and verify check only ConfigMap metadata and key presence, and the sync script exits before OpenBao login if the mounted CA bundle is missing, empty, or unreadable.
+Operator PKI is the future source for OpenBao CA bundle trust for in-cluster clients. Until that public CA bundle is safely projected into the sync namespace, the OpenBao CA bundle projection is required and fail-closed: install and verify check only ConfigMap metadata and key presence, and the sync script exits before OpenBao login if the mounted CA bundle is missing, empty, or unreadable.

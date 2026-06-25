@@ -1,3 +1,5 @@
 # Local bootstrap/import/recovery material. Keep the sanitized example tracked.
 operator-plane.bootstrap-secrets.env
 !operator-plane.bootstrap-secrets.env.example
+operator-pki/operator-pki.env
+!operator-pki/operator-pki.env.example
