@@ -13,11 +13,23 @@ Environment-specific scripts and examples live under:
 k8s/operator-plane/environments/vps-family-control/operator-pki/
 ```
 
+The environment uses a single operational env entrypoint:
+
+```text
+k8s/operator-plane/environments/vps-family-control/operator-plane.env
+```
+
+`operator-pki.env` is not an operational file. Operator PKI settings are in the
+central `operator-plane.env.example` schema, and scripts derive service
+hostnames and internal DNS names instead of requiring repeated full strings.
+
 Runbooks live under:
 
 ```text
 k8s/operator-plane/operator-pki/runbooks/
 ```
 
-This stage does not issue or install the final `operator-vault` runtime TLS
-artifact and does not expose `operator-vault` through Traefik.
+Operator PKI configure and verify are phases of the environment bootstrap and
+verify orchestrators. This stage does not issue or install the final
+`operator-vault` runtime TLS artifact, does not rotate existing OpenBao TLS,
+and does not expose `operator-vault` through Traefik.

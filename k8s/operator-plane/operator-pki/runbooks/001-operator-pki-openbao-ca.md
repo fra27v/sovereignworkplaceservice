@@ -15,6 +15,13 @@ tenant trust distribution are out of scope.
 The Operator CA is an OpenBao PKI secrets engine mounted at the environment
 configured mount path, normally `operator-pki`.
 
+The environment configuration source is the central
+`k8s/operator-plane/environments/vps-family-control/operator-plane.env` file.
+Do not create `operator-pki.env` as an operational file. Values that can be
+derived, such as `operator-vault.<domain>` and OpenBao internal service DNS
+names, are derived from the central base domain, service name, namespace, and
+cluster DNS suffix.
+
 The CA private key is generated internally by OpenBao and is never exported.
 The public CA certificate bundle is exported to the configured public operator
 PKI directory and may be published to consumers that need to trust operator
@@ -40,6 +47,9 @@ The default leaf TTL is ninety days:
 The role allows the configured operator-vault DNS names, localhost, and IP SANs
 needed for the first environment. It creates server certificates only. Client
 certificate issuance is not enabled in this first phase.
+
+The role common name and DNS SANs are derived by the scripts; they are not
+duplicated as independent operational variables.
 
 ## Issuance Model
 
@@ -76,5 +86,11 @@ secret sync Job remains fail-closed.
 Operator PKI will replace the bootstrap or self-signed OpenBao TLS material in
 a later phase. This runbook only establishes the CA and the issuance role.
 
-Do not run destructive reinstall tests until Operator PKI, operator-vault TLS
-rotation, artifact publication, and final debug points are complete.
+The environment bootstrap and verify orchestrators include Operator PKI
+configure and verify phases. Bootstrap configures CA and role state only; it
+does not rotate existing OpenBao TLS and does not expose `operator-vault`.
+Leaf TLS issuance and rotation is the next explicit phase.
+
+Destructive reinstall testing remains deferred until Operator PKI,
+operator-vault TLS rotation, artifact publication, and final debug points are
+complete.

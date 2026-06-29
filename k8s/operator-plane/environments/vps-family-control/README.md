@@ -17,6 +17,16 @@ The environment-level operator entrypoints are:
 - `scripts/bootstrap-operator-plane.sh`
 - `scripts/verify-operator-plane.sh`
 
+`operator-plane.env` is the single normal operational env file for this
+environment. Copy `operator-plane.env.example` to `operator-plane.env`, keep it
+out of Git, and set permissions to `0600`. Component-specific `.env.example`
+files are reference-only and must not become separate operational env files.
+
+Do not duplicate the same real-world value under multiple variable names.
+Public service names such as `operator-vault.<domain>` and internal OpenBao
+service DNS names are derived from the central base domain, service name,
+namespace, and cluster DNS suffix where possible.
+
 Manual component scripts remain available under `traefik/scripts`,
 `openbao/scripts`, and `operator-artifacts/scripts` for debugging. The target
 operator interface is the environment bootstrap script plus the environment
@@ -25,15 +35,18 @@ verification script.
 Global OpenBao KV is the operator-plane source of truth for secrets and
 sensitive runtime configuration. Kubernetes Secrets are runtime projections or
 bootstrap imports, not the long-term source of truth. Local `.env` files are
-bootstrap, import, and recovery material only.
+bootstrap, import, recovery, or central non-secret/sensitive operational
+configuration only.
 
 In-cluster operator-plane sync uses OpenBao Kubernetes auth. Do not store static
 OpenBao tokens in Kubernetes Secrets.
 
-Operator PKI foundation files are present under `operator-pki/`. They configure
-an OpenBao-managed Operator CA and export only the public CA bundle. They do not
-yet issue or install the final `operator-vault` runtime TLS certificate and do
-not expose `operator-vault`.
+Operator PKI foundation files are present under `operator-pki/` and are wired
+into the bootstrap and verify entrypoints. They configure an OpenBao-managed
+Operator CA, configure the `operator-vault` issuance role, and export only the
+public CA bundle. They do not yet issue or install the final `operator-vault`
+runtime TLS certificate, do not rotate existing OpenBao TLS, and do not expose
+`operator-vault`.
 
 The exported Operator CA bundle is the future trust source for in-cluster
 clients such as `operator-secret-sync`. The sync runner image is still not

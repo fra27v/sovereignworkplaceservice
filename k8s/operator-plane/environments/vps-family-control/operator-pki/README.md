@@ -3,12 +3,17 @@
 This directory contains the environment-specific Operator PKI foundation for
 `vps-family-control`.
 
-Copy `operator-pki.env.example` to `operator-pki.env`, keep the real file out
-of Git, and set permissions to `0600`.
+Operator PKI uses the central environment entrypoint:
 
-The real environment file must not contain private keys, certificates, tokens,
-OpenBao init material, public IPs, real domains, or emails. It contains only
-local paths and non-secret OpenBao PKI settings.
+```text
+k8s/operator-plane/environments/vps-family-control/operator-plane.env
+```
+
+Do not create `operator-pki.env` as an operational file. Copy
+`operator-plane.env.example` to `operator-plane.env`, keep it out of Git, and
+set permissions to `0600`. Public service hostnames and internal OpenBao DNS
+names are derived from the central base domain, service name, namespace, and
+cluster DNS suffix where possible.
 
 Configure the Operator PKI foundation:
 
@@ -26,4 +31,5 @@ Verify the foundation without changing OpenBao:
 This stage creates or verifies the OpenBao PKI mount, creates the internal
 Operator CA only when missing, configures the `operator-vault` issuance role,
 and exports only the public CA bundle. It does not issue or install the final
-`operator-vault` runtime TLS certificate.
+`operator-vault` runtime TLS certificate, does not rotate existing OpenBao TLS,
+and does not expose `operator-vault`.

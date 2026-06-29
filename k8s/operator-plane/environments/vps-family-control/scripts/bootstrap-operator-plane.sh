@@ -5,10 +5,12 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/.." && pwd)"
 
 dry_run="false"
+env_file="${env_dir}/operator-plane.env"
 run_traefik="false"
 run_openbao="false"
 run_operator_secret_sync="false"
 run_operator_artifacts="false"
+run_operator_pki="false"
 
 summary_ok=()
 summary_warn=()
@@ -16,7 +18,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync] [--operator-artifacts] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -27,6 +29,8 @@ Options:
   --openbao             Run Global OpenBao baseline verification only.
   --operator-secret-sync Import/configure/apply operator-plane secret sync.
   --operator-artifacts  Run operator-artifacts bootstrap.
+  --operator-pki        Configure and verify Operator PKI foundation.
+  --env-file <path>     Path to the central operator-plane.env file.
   --dry-run             Print commands without running component scripts.
   --help                Show this help.
 
@@ -57,6 +61,8 @@ run_if_executable() {
   local label="$1"
   local path="$2"
   local required="${3:-false}"
+  shift 3 || true
+  local args=("$@")
 
   if [[ ! -f "${path}" ]]; then
     if [[ "${required}" = "true" ]]; then
@@ -76,13 +82,13 @@ run_if_executable() {
     return 0
   fi
 
-  echo "+ ${path}"
+  echo "+ ${path}${args[*]:+ ${args[*]}}"
   if [[ "${dry_run}" = "true" ]]; then
-    echo "DRY-RUN: would run ${path}"
+    echo "DRY-RUN: would run ${path}${args[*]:+ ${args[*]}}"
     return 0
   fi
 
-  if "${path}"; then
+  if "${path}" "${args[@]}"; then
     return 0
   fi
 
@@ -176,11 +182,24 @@ phase_operator_artifacts() {
   fi
 }
 
-phase_operator_pki_placeholder() {
+phase_operator_pki() {
   echo
   echo "== Operator PKI =="
-  echo "TODO: next phase"
-  warn "Operator PKI is not implemented yet"
+  local pki_scripts="${env_dir}/operator-pki/scripts"
+  local fail_count_before="${#summary_fail[@]}"
+
+  run_if_executable "Operator PKI configure" "${pki_scripts}/configure-openbao-operator-pki.sh" "true" --env-file "${env_file}"
+  run_if_executable "Operator PKI verify" "${pki_scripts}/verify-openbao-operator-pki.sh" "true" --env-file "${env_file}"
+
+  cat <<'EOF'
+Safe TODO:
+  - issue and install operator-vault leaf TLS in a later explicit phase
+  - keep operator-vault private and do not expose it publicly yet
+EOF
+
+  if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
+    ok "Operator PKI phase completed"
+  fi
 }
 
 phase_summary() {
@@ -220,6 +239,7 @@ while [[ "$#" -gt 0 ]]; do
       run_openbao="true"
       run_operator_secret_sync="true"
       run_operator_artifacts="true"
+      run_operator_pki="true"
       ;;
     --traefik)
       run_traefik="true"
@@ -232,6 +252,17 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --operator-artifacts)
       run_operator_artifacts="true"
+      ;;
+    --operator-pki)
+      run_operator_pki="true"
+      ;;
+    --env-file)
+      [[ "$#" -ge 2 ]] || {
+        echo "--env-file requires a path." >&2
+        exit 1
+      }
+      env_file="$2"
+      shift
       ;;
     --dry-run)
       dry_run="true"
@@ -249,7 +280,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" ]]; then
   usage >&2
   exit 1
 fi
@@ -272,7 +303,10 @@ if [[ "${run_operator_artifacts}" = "true" ]]; then
   phase_operator_artifacts
 fi
 
-phase_operator_pki_placeholder
+if [[ "${run_operator_pki}" = "true" ]]; then
+  phase_operator_pki
+fi
+
 phase_summary
 
 if [[ "${#summary_fail[@]}" -gt 0 ]]; then

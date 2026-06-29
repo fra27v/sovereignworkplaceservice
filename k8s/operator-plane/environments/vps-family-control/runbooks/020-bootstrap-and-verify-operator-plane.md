@@ -13,6 +13,19 @@ Use these environment-level scripts as the operator interface:
 
 Component scripts remain available under `traefik/scripts`, `openbao/scripts`, and `operator-artifacts/scripts` for debugging and explicit runbook steps. The final operator interface should converge on bootstrap plus verify.
 
+## Environment Entry Point
+
+`k8s/operator-plane/environments/vps-family-control/operator-plane.env` is the
+single normal operational env file for this environment. Create it from
+`operator-plane.env.example`, keep it ignored by Git, and set permissions to
+`0600`.
+
+Do not create component-specific real env files for Operator PKI.
+Component-specific `.env.example` files are reference-only. Avoid duplicated
+values across variables: derive public service hostnames from the central base
+domain and derive internal DNS names from service, namespace, and cluster DNS
+suffix values.
+
 ## Current Supported Phases
 
 The bootstrap entrypoint currently supports:
@@ -21,18 +34,18 @@ The bootstrap entrypoint currently supports:
 - Global OpenBao baseline verification
 - operator-plane secret import, Kubernetes auth configuration, and one-shot sync Job apply
 - `operator-artifacts`
+- Operator PKI configure and verify
 
 Global OpenBao install, initialization, transit setup, and audit setup remain delegated to their explicit component runbooks until stable environment-level entrypoints are validated.
 
-Operator PKI foundation scripts are present under `operator-pki/scripts`, but
-they are not yet wired into the environment bootstrap entrypoint. Run them only
-from the Operator PKI runbook when intentionally configuring that phase.
+Operator PKI bootstrap configures only the OpenBao PKI mount, Operator CA,
+`operator-vault` issuance role, and public CA bundle export. It does not issue
+leaf certificates, rotate existing OpenBao TLS, or expose `operator-vault`.
 
 ## Current TODO Phases
 
 Future work:
 
-- Wire Operator PKI into the environment bootstrap flow after manual validation
 - Issue and install `operator-vault` runtime TLS from Operator PKI
 - `operator-vault` TCP passthrough through Traefik
 - final destructive reinstall test
@@ -59,6 +72,12 @@ Preview the operator-secret-sync phase:
 sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync --dry-run
 ```
 
+Preview the Operator PKI phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-pki --dry-run
+```
+
 Run read-only verification:
 
 ```bash
@@ -72,7 +91,7 @@ Run read-only verification:
 - Do not print Kubernetes Secret `.data` or `stringData`.
 - Do not run destructive wipe behavior until the final phase.
 - Do not touch `trading`.
-- Do not treat local `.env` files as the final source of truth.
+- Do not introduce component-specific real env files.
 - Do not store static OpenBao tokens in Kubernetes Secrets.
 
 ## Secret Authority
@@ -84,7 +103,10 @@ KV data. The CA private key remains inside OpenBao. The first Operator PKI
 foundation exports only the public CA bundle and checksum for future trust
 distribution.
 
-Kubernetes Secrets are runtime projections or bootstrap imports. Local `.env` files are bootstrap, import, and recovery material only.
+Kubernetes Secrets are runtime projections or bootstrap imports. Local env files
+are bootstrap, import, recovery, or central non-secret/sensitive operational
+configuration only. `operator-plane.env` is the single normal operational env
+file.
 
 The in-cluster sync Job authenticates to OpenBao with Kubernetes auth through the `operator-plane-secret-sync` ServiceAccount and role. It does not use a static OpenBao token.
 

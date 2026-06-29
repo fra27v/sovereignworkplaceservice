@@ -3,8 +3,10 @@ set -euo pipefail
 umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-env_dir="$(cd -- "${script_dir}/.." && pwd)"
-env_file="${env_dir}/operator-pki.env"
+operator_pki_dir="$(cd -- "${script_dir}/.." && pwd)"
+env_dir="$(cd -- "${operator_pki_dir}/.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
 vault_addr="https://127.0.0.1:8200"
 vault_cacert="/openbao/tls/tls.crt"
@@ -12,14 +14,15 @@ bao_addr="${vault_addr}"
 bao_cacert="${vault_cacert}"
 
 required_env_keys=(
+  OPERATOR_DOMAIN
+  KUBERNETES_CLUSTER_DNS_SUFFIX
   OPENBAO_NAMESPACE
   OPENBAO_POD_NAME
+  OPENBAO_SERVICE_NAME
   OPENBAO_PKI_MOUNT
   OPENBAO_OPERATOR_CA_COMMON_NAME
   OPENBAO_OPERATOR_CA_TTL
   OPENBAO_OPERATOR_VAULT_ROLE
-  OPENBAO_OPERATOR_VAULT_COMMON_NAME
-  OPENBAO_OPERATOR_VAULT_ALT_NAMES
   OPENBAO_OPERATOR_VAULT_IP_SANS
   OPENBAO_OPERATOR_VAULT_TTL
   OPERATOR_PKI_PUBLIC_DIR
@@ -35,7 +38,7 @@ Verifies the vps-family-control Operator PKI foundation without changing
 OpenBao state and without printing certificate, token, or private key material.
 
 Options:
-  --env-file <path>  Path to operator-pki.env.
+  --env-file <path>  Path to operator-plane.env.
   --help            Show this help.
 USAGE
 }
@@ -49,67 +52,9 @@ ok() {
   echo "OK: $*"
 }
 
-file_mode() {
-  local path="$1"
-
-  if stat -c '%a' "${path}" >/dev/null 2>&1; then
-    stat -c '%a' "${path}"
-  else
-    stat -f '%Lp' "${path}"
-  fi
-}
-
 require_command() {
   local name="$1"
   command -v "${name}" >/dev/null 2>&1 || fail "Missing required command: ${name}"
-}
-
-validate_env_key() {
-  local key="$1"
-  local allowed
-
-  for allowed in "${required_env_keys[@]}"; do
-    [[ "${key}" == "${allowed}" ]] && return 0
-  done
-
-  fail "Unknown key in env file: ${key}"
-}
-
-load_env_file() {
-  local path="$1"
-  local line key value seen_keys
-  declare -A seen_keys=()
-
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    [[ -z "${line}" ]] && continue
-    [[ "${line}" =~ ^[[:space:]]*# ]] && continue
-    [[ "${line}" != *"="* ]] && fail "Invalid env line without '=': ${line}"
-    [[ "${line}" =~ ^[[:space:]]*export[[:space:]]+ ]] && fail "Do not use export in ${path}."
-    [[ "${line}" == *'$('* || "${line}" == *'`'* ]] && fail "Command substitution is not allowed in ${path}."
-
-    key="${line%%=*}"
-    value="${line#*=}"
-    [[ "${key}" =~ ^[A-Z0-9_]+$ ]] || fail "Invalid env key: ${key}"
-    validate_env_key "${key}"
-    [[ -z "${seen_keys[${key}]+x}" ]] || fail "Duplicate env key: ${key}"
-    seen_keys["${key}"]=1
-    printf -v "${key}" '%s' "${value}"
-  done < "${path}"
-
-  for key in "${required_env_keys[@]}"; do
-    [[ -n "${!key:-}" ]] || fail "Missing or empty required env key: ${key}"
-  done
-}
-
-check_private_file_permissions() {
-  local path="$1"
-  local mode mode_value
-
-  mode="$(file_mode "${path}")"
-  mode_value=$((8#${mode}))
-  if (( (mode_value & 077) != 0 || (mode_value & 100) != 0 )); then
-    fail "File permissions are too open (${mode}); expected 0600 or 0400: ${path}"
-  fi
 }
 
 token_exec() {
@@ -141,13 +86,15 @@ done
 require_command jq
 require_command kubectl
 require_command sha256sum
+[[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
 
 [[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
-check_private_file_permissions "${env_file}"
-load_env_file "${env_file}"
+load_operator_plane_env "${env_file}" "true" "${required_env_keys[@]}"
 
 [[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
-check_private_file_permissions "${init_file}"
+operator_plane_env_check_private_file_permissions "${init_file}"
 root_token="$(jq -r '.root_token // empty' "${init_file}")"
 [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
 

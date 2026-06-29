@@ -3,10 +3,23 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
 
 summary_ok=()
 summary_warn=()
 summary_fail=()
+
+usage() {
+  cat <<EOF
+Usage: $0 [--env-file <path>] [--help]
+
+Verify the vps-family-control operator plane without printing secrets.
+
+Options:
+  --env-file <path>  Path to the central operator-plane.env file.
+  --help            Show this help.
+EOF
+}
 
 ok() {
   summary_ok+=("$1")
@@ -26,6 +39,12 @@ fail_component() {
 run_verify_script() {
   local label="$1"
   local path="$2"
+  shift 2
+  local failure_mode="${1:-fail}"
+  if [[ "$#" -gt 0 ]]; then
+    shift
+  fi
+  local args=("$@")
 
   if [[ ! -f "${path}" ]]; then
     warn "${label} verification script is missing: ${path}"
@@ -39,11 +58,15 @@ run_verify_script() {
 
   echo
   echo "== ${label} verification script =="
-  echo "+ ${path}"
-  if "${path}"; then
+  echo "+ ${path}${args[*]:+ ${args[*]}}"
+  if "${path}" "${args[@]}"; then
     ok "${label} verification script passed"
   else
-    fail_component "${label} verification script failed"
+    if [[ "${failure_mode}" = "warn" ]]; then
+      warn "${label} verification script did not pass; treat as TODO until Operator PKI is configured"
+    else
+      fail_component "${label} verification script failed"
+    fi
   fi
 }
 
@@ -170,7 +193,7 @@ check_openbao_pod() {
 print_todos() {
   echo
   echo "== TODO =="
-  warn "Operator PKI is not implemented yet"
+  warn "operator-vault leaf TLS issuance and rotation are not implemented yet"
   warn "operator-vault public endpoint is not implemented yet"
 }
 
@@ -199,11 +222,34 @@ print_summary() {
   fi
 }
 
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ "$#" -ge 2 ]] || {
+        echo "--env-file requires a path." >&2
+        exit 1
+      }
+      env_file="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 run_verify_script "Traefik" "${env_dir}/traefik/scripts/verify-traefik-acme-dns01-ovh.sh"
 run_verify_script "operator-secret-sync" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh"
 run_verify_script "operator-artifacts" "${env_dir}/operator-artifacts/scripts/verify-operator-artifacts.sh"
 run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-openbao-global-audit.sh"
 run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh"
+run_verify_script "Operator PKI" "${env_dir}/operator-pki/scripts/verify-openbao-operator-pki.sh" "warn" --env-file "${env_file}"
 
 check_k3s_node_ready
 check_trading_namespace
