@@ -71,11 +71,11 @@ read_root_token() {
   [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
 }
 
-is_missing_operator_ca_error() {
+is_missing_operator_ca_or_issuer_error() {
   local output="$1"
 
   printf '%s\n' "${output}" | grep -Eiq \
-    'No value found|missing|not found|404|no issuing certificate|no certificate|no ca certificate|certificate is nil|issuer .*not .*configured'
+    'No value found|missing|not found|404|no issuers|no issuing certificate|no certificate|no ca certificate|certificate is nil|issuer .*not .*configured'
 }
 
 print_operator_ca_metadata() {
@@ -87,17 +87,49 @@ print_operator_ca_metadata() {
   echo "${label}: sha256=${ca_fingerprint}, pem_bytes=${ca_size_bytes}"
 }
 
-print_operator_ca_read_error() {
-  local exit_code="$1"
+print_operator_ca_command_error() {
+  local purpose="$1"
+  local exit_code="$2"
 
   echo "ERROR: could not check Operator CA." >&2
-  echo "Command purpose: read the public Operator CA certificate." >&2
+  echo "Command purpose: ${purpose}" >&2
   echo "PKI mount: ${OPENBAO_PKI_MOUNT}" >&2
   echo "Exit code: ${exit_code}" >&2
   echo "Raw OpenBao output was suppressed to avoid printing sensitive or environment-specific context." >&2
 }
 
-read_operator_ca() {
+operator_ca_issuer_list_has_entries() {
+  jq -e '
+    (type == "array" and length > 0)
+    or ((.keys? // []) | length > 0)
+    or ((.data.keys? // []) | length > 0)
+  ' >/dev/null
+}
+
+operator_ca_has_issuer() {
+  local issuer_output issuer_exit_code
+
+  set +e
+  issuer_output="$(token_exec "${root_token}" bao list -format=json "${OPENBAO_PKI_MOUNT}/issuers" 2>&1)"
+  issuer_exit_code="$?"
+  set -e
+
+  if [[ "${issuer_exit_code}" -eq 0 ]]; then
+    if printf '%s\n' "${issuer_output}" | operator_ca_issuer_list_has_entries; then
+      return 0
+    fi
+    return 1
+  fi
+
+  if is_missing_operator_ca_or_issuer_error "${issuer_output}"; then
+    return 1
+  fi
+
+  print_operator_ca_command_error "list Operator PKI issuers" "${issuer_exit_code}"
+  return 2
+}
+
+read_public_operator_ca_certificate() {
   local ca_read_output ca_read_exit_code
 
   set +e
@@ -110,11 +142,7 @@ read_operator_ca() {
     return 0
   fi
 
-  if is_missing_operator_ca_error "${ca_read_output}"; then
-    return 1
-  fi
-
-  print_operator_ca_read_error "${ca_read_exit_code}"
+  print_operator_ca_command_error "read the public Operator CA certificate" "${ca_read_exit_code}"
   return 2
 }
 
@@ -214,26 +242,21 @@ echo "Tuning Operator PKI max TTL."
 token_exec "${root_token}" bao secrets tune -max-lease-ttl="${OPENBAO_OPERATOR_CA_TTL}" "${OPENBAO_PKI_MOUNT}" >/dev/null
 
 echo "Checking Operator CA."
-# An empty PKI mount is expected immediately after first enable/tune. Treat
-# OpenBao "no CA yet" responses as a generation trigger, not a fatal error.
-if read_operator_ca; then
+# An enabled PKI mount with no issuer or CA is expected after first enable/tune.
+# Issuer presence decides whether a CA already exists; cert/ca is read only
+# after existence or generation so it can feed safe metadata and bundle export.
+if operator_ca_has_issuer; then
   echo "Operator CA already exists; leaving existing CA unchanged."
+  read_public_operator_ca_certificate || exit "$?"
   print_operator_ca_metadata "Existing Operator CA safe metadata"
 else
-  ca_read_status="$?"
-  if [[ "${ca_read_status}" -eq 1 ]]; then
+  ca_issuer_status="$?"
+  if [[ "${ca_issuer_status}" -eq 1 ]]; then
     generate_operator_ca
-    if read_operator_ca; then
-      print_operator_ca_metadata "Generated Operator CA safe metadata"
-    else
-      ca_read_status="$?"
-      if [[ "${ca_read_status}" -eq 1 ]]; then
-        fail "Operator CA was generated but the public CA certificate is still missing at mount ${OPENBAO_PKI_MOUNT}."
-      fi
-      exit "${ca_read_status}"
-    fi
+    read_public_operator_ca_certificate || exit "$?"
+    print_operator_ca_metadata "Generated Operator CA safe metadata"
   else
-    exit "${ca_read_status}"
+    exit "${ca_issuer_status}"
   fi
 fi
 
@@ -253,7 +276,7 @@ mkdir -p "${OPERATOR_PKI_PUBLIC_DIR}"
 chmod 0755 "${OPERATOR_PKI_PUBLIC_DIR}"
 ca_bundle_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem"
 ca_checksum_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem.sha256"
-token_exec "${root_token}" bao read -field=certificate "${OPENBAO_PKI_MOUNT}/cert/ca" > "${ca_bundle_path}"
+printf '%s\n' "${ca_certificate}" > "${ca_bundle_path}"
 [[ -s "${ca_bundle_path}" ]] || fail "Public CA bundle was not written or is empty: ${ca_bundle_path}"
 chmod 0644 "${ca_bundle_path}"
 (
