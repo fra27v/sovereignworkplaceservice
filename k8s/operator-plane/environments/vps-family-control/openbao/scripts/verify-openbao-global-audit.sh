@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 namespace="openbao-operator"
 pod_name="openbao-global-0"
-init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
+init_file=""
 audit_path="file/"
 audit_file_path="/openbao/audit/audit.log"
 vault_addr="https://127.0.0.1:8200"
@@ -16,16 +20,6 @@ fail() {
   exit 1
 }
 
-file_mode() {
-  local path="$1"
-
-  if stat -c '%a' "${path}" >/dev/null 2>&1; then
-    stat -c '%a' "${path}"
-  else
-    stat -f '%Lp' "${path}"
-  fi
-}
-
 token_exec() {
   local token="$1"
   shift
@@ -36,13 +30,15 @@ token_exec() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
-[[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
+[[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
 
-mode="$(file_mode "${init_file}")"
-case "${mode}" in
-  600|400) ;;
-  *) fail "Init file permissions are too open (${mode}); expected 0600 or 0400: ${init_file}" ;;
-esac
+if [[ -f "${env_file}" ]]; then
+  load_operator_plane_env "${env_file}" "true"
+fi
+
+init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"
 
 root_token="$(jq -r '.root_token // empty' "${init_file}")"
 [[ -n "${root_token}" ]] || fail "Could not read root token from init file."

@@ -4,6 +4,9 @@ umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 
 namespace="openbao-operator"
 auth_path="kubernetes"
@@ -13,7 +16,7 @@ policy_file="${repo_root}/k8s/operator-plane/openbao/policies/operator-plane-sec
 bound_service_account_name="operator-plane-secret-sync"
 bound_service_account_namespace="operator-secret-sync"
 role_ttl="15m"
-init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
+init_file=""
 vault_addr="https://127.0.0.1:8200"
 vault_cacert="/openbao/tls/tls.crt"
 bao_addr="${vault_addr}"
@@ -28,7 +31,8 @@ secret sync Job.
 
 Options:
   --init-file <path>  OpenBao init JSON containing a bootstrap/admin token.
-                     Defaults to ${init_file}
+                     Defaults to OPENBAO_BOOTSTRAP_INIT_FILE from operator-plane.env,
+                     then the operator user's bootstrap path under sudo, then HOME.
   --help             Show this help.
 
 Safety:
@@ -45,16 +49,6 @@ fail() {
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
-}
-
-file_mode() {
-  local path="$1"
-
-  if stat -c '%a' "${path}" >/dev/null 2>&1; then
-    stat -c '%a' "${path}"
-  else
-    stat -f '%Lp' "${path}"
-  fi
 }
 
 discover_openbao_pod() {
@@ -142,13 +136,20 @@ require_command kubectl
 require_command jq
 
 [[ -s "${policy_file}" ]] || fail "Missing or empty policy file: ${policy_file}"
-[[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
+[[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
 
-mode="$(file_mode "${init_file}")"
-case "${mode}" in
-  600|400) ;;
-  *) fail "Init file permissions are too open (${mode}); expected 0600 or 0400: ${init_file}" ;;
-esac
+if [[ -f "${env_file}" ]]; then
+  load_operator_plane_env "${env_file}" "true"
+fi
+
+if [[ -n "${init_file}" ]]; then
+  [[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
+  operator_plane_env_check_private_file_permissions "${init_file}"
+else
+  init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"
+fi
 
 root_token="$(jq -r '.root_token // empty' "${init_file}")"
 [[ -n "${root_token}" ]] || fail "Could not read root token from init file."

@@ -10,6 +10,7 @@ operator_plane_allowed_env_keys=(
   OPENBAO_NAMESPACE
   OPENBAO_POD_NAME
   OPENBAO_SERVICE_NAME
+  OPENBAO_BOOTSTRAP_INIT_FILE
   OPENBAO_PKI_MOUNT
   OPENBAO_OPERATOR_CA_COMMON_NAME
   OPENBAO_OPERATOR_CA_TTL
@@ -44,6 +45,41 @@ operator_plane_env_check_private_file_permissions() {
   if (( (mode_value & 077) != 0 || (mode_value & 100) != 0 )); then
     operator_plane_env_fail "File permissions are too open (${mode}); expected 0600 or 0400: ${path}"
   fi
+}
+
+operator_plane_env_sudo_user_home() {
+  local sudo_user="${SUDO_USER:-}"
+  local passwd_entry
+
+  [[ -n "${sudo_user}" ]] || return 1
+  [[ "${sudo_user}" != "root" ]] || return 1
+
+  command -v getent >/dev/null 2>&1 || operator_plane_env_fail "Missing required command for sudo user home lookup: getent"
+  passwd_entry="$(getent passwd "${sudo_user}")" || operator_plane_env_fail "Could not resolve home directory for sudo user: ${sudo_user}"
+  printf '%s' "${passwd_entry}" | awk -F: '{print $6}'
+}
+
+operator_plane_env_default_openbao_bootstrap_init_file() {
+  local sudo_home
+
+  if sudo_home="$(operator_plane_env_sudo_user_home)"; then
+    printf '%s/openbao-bootstrap/openbao-global/openbao-global-init.json' "${sudo_home}"
+    return 0
+  fi
+
+  printf '%s/openbao-bootstrap/openbao-global/openbao-global-init.json' "${HOME}"
+}
+
+operator_plane_env_resolve_openbao_bootstrap_init_file() {
+  local path="${OPENBAO_BOOTSTRAP_INIT_FILE:-}"
+
+  if [[ -z "${path}" ]]; then
+    path="$(operator_plane_env_default_openbao_bootstrap_init_file)"
+  fi
+
+  [[ -f "${path}" ]] || operator_plane_env_fail "Missing OpenBao bootstrap init file: ${path}"
+  operator_plane_env_check_private_file_permissions "${path}"
+  printf '%s' "${path}"
 }
 
 operator_plane_env_key_allowed() {

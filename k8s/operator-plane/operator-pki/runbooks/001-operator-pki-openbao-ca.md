@@ -22,6 +22,14 @@ derived, such as `operator-vault.<domain>` and OpenBao internal service DNS
 names, are derived from the central base domain, service name, namespace, and
 cluster DNS suffix.
 
+Operator PKI scripts may run with `sudo` for host filesystem writes. On Linux,
+`sudo` changes `$HOME` to `/root`, but Global OpenBao init material remains
+under the operator user's bootstrap directory unless explicitly configured
+otherwise. Set `OPENBAO_BOOTSTRAP_INIT_FILE` in `operator-plane.env` to the
+existing local bootstrap init JSON path. This variable is a path only; the file
+it points to contains sensitive OpenBao init material. Do not copy init
+material to `/root`, and do not paste or commit the init JSON contents.
+
 The CA private key is generated internally by OpenBao and is never exported.
 The public CA certificate bundle is exported to the configured public operator
 PKI directory and may be published to consumers that need to trust operator

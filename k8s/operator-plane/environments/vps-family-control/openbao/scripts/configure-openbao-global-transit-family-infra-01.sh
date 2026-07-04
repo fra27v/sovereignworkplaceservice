@@ -4,15 +4,18 @@ umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 namespace="openbao-operator"
 pod_name="openbao-global-0"
-init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
+init_file=""
 tenant_name="family-infra-01"
 transit_mount="transit"
 transit_key="family-infra-01-autounseal"
 policy_name="family-infra-01-transit-autounseal"
 policy_file="${repo_root}/k8s/operator-plane/openbao/policies/family-infra-01-transit-autounseal.hcl"
-token_file="${HOME}/openbao-bootstrap/openbao-global/family-infra-01-transit-token.json"
+token_file=""
 token_period="720h"
 vault_addr="https://127.0.0.1:8200"
 vault_cacert="/openbao/tls/tls.crt"
@@ -22,16 +25,6 @@ bao_cacert="${vault_cacert}"
 fail() {
   echo "ERROR: $*" >&2
   exit 1
-}
-
-file_mode() {
-  local path="$1"
-
-  if stat -c '%a' "${path}" >/dev/null 2>&1; then
-    stat -c '%a' "${path}"
-  else
-    stat -f '%Lp' "${path}"
-  fi
 }
 
 token_exec() {
@@ -65,15 +58,18 @@ token_exec_with_policy_file() {
 
 command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
 command -v base64 >/dev/null 2>&1 || fail "Missing required command: base64"
-[[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
+[[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
+
+if [[ -f "${env_file}" ]]; then
+  load_operator_plane_env "${env_file}" "true"
+fi
+
+init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"
+token_file="$(dirname -- "${init_file}")/family-infra-01-transit-token.json"
 [[ -s "${policy_file}" ]] || fail "Missing or empty policy file: ${policy_file}"
 [[ ! -e "${token_file}" ]] || fail "Refusing to overwrite existing tenant token file: ${token_file}"
-
-mode="$(file_mode "${init_file}")"
-case "${mode}" in
-  600|400) ;;
-  *) fail "Init file permissions are too open (${mode}); expected 0600 or 0400: ${init_file}" ;;
-esac
 
 root_token="$(jq -r '.root_token // empty' "${init_file}")"
 [[ -n "${root_token}" ]] || fail "Could not read root token from init file."

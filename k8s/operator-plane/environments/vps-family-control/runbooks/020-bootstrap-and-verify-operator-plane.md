@@ -43,6 +43,14 @@ values across variables: derive public service hostnames from the central base
 domain and derive internal DNS names from service, namespace, and cluster DNS
 suffix values.
 
+Some scripts run with `sudo` for host filesystem writes. On Linux, `sudo`
+changes `$HOME` to `/root`, but Global OpenBao init material remains under the
+operator user's bootstrap directory unless explicitly configured otherwise. Set
+`OPENBAO_BOOTSTRAP_INIT_FILE` in `operator-plane.env` to the existing local
+bootstrap init JSON path. This variable is a path only; the file it points to
+contains sensitive OpenBao init material. Do not copy init material to `/root`,
+and do not paste or commit the init JSON contents.
+
 ## Current Supported Phases
 
 The bootstrap entrypoint currently supports:

@@ -1,8 +1,31 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
+init_file=""
 required_confirmation="I HAVE SECURED GLOBAL OPENBAO INIT MATERIAL"
+
+fail() {
+  echo "ERROR: $*" >&2
+  exit 1
+}
+
+[[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
+
+if [[ -f "${env_file}" ]]; then
+  load_operator_plane_env "${env_file}" "true"
+fi
+
+if [[ -n "${OPENBAO_BOOTSTRAP_INIT_FILE:-}" ]]; then
+  init_file="${OPENBAO_BOOTSTRAP_INIT_FILE}"
+else
+  init_file="$(operator_plane_env_default_openbao_bootstrap_init_file)"
+fi
 
 echo "This script retires only the local Global OpenBao init JSON:"
 echo "${init_file}"

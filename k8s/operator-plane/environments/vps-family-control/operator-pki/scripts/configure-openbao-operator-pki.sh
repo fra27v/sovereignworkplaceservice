@@ -8,7 +8,7 @@ env_dir="$(cd -- "${operator_pki_dir}/.." && pwd)"
 env_file="${env_dir}/operator-plane.env"
 env_example_file="${env_dir}/operator-plane.env.example"
 env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
-init_file="${HOME}/openbao-bootstrap/openbao-global/openbao-global-init.json"
+init_file=""
 vault_addr="https://127.0.0.1:8200"
 vault_cacert="/openbao/tls/tls.crt"
 bao_addr="${vault_addr}"
@@ -65,8 +65,7 @@ token_exec() {
 }
 
 read_root_token() {
-  [[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"
-  operator_plane_env_check_private_file_permissions "${init_file}"
+  init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"
 
   root_token="$(jq -r '.root_token // empty' "${init_file}")"
   [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
