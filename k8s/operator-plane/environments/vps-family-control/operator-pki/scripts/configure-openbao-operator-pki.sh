@@ -71,6 +71,60 @@ read_root_token() {
   [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
 }
 
+is_missing_operator_ca_error() {
+  local output="$1"
+
+  printf '%s\n' "${output}" | grep -Eiq \
+    'No value found|missing|not found|404|no issuing certificate|no certificate|no ca certificate|certificate is nil|issuer .*not .*configured'
+}
+
+print_operator_ca_metadata() {
+  local label="$1"
+  local ca_fingerprint ca_size_bytes
+
+  ca_fingerprint="$(printf '%s\n' "${ca_certificate}" | sha256sum | awk '{print $1}')"
+  ca_size_bytes="$(printf '%s\n' "${ca_certificate}" | wc -c | awk '{print $1}')"
+  echo "${label}: sha256=${ca_fingerprint}, pem_bytes=${ca_size_bytes}"
+}
+
+print_operator_ca_read_error() {
+  local exit_code="$1"
+
+  echo "ERROR: could not check Operator CA." >&2
+  echo "Command purpose: read the public Operator CA certificate." >&2
+  echo "PKI mount: ${OPENBAO_PKI_MOUNT}" >&2
+  echo "Exit code: ${exit_code}" >&2
+  echo "Raw OpenBao output was suppressed to avoid printing sensitive or environment-specific context." >&2
+}
+
+read_operator_ca() {
+  local ca_read_output ca_read_exit_code
+
+  set +e
+  ca_read_output="$(token_exec "${root_token}" bao read -format=json "${OPENBAO_PKI_MOUNT}/cert/ca" 2>&1)"
+  ca_read_exit_code="$?"
+  set -e
+
+  if [[ "${ca_read_exit_code}" -eq 0 ]] && printf '%s\n' "${ca_read_output}" | jq -e '.data.certificate // empty' >/dev/null; then
+    ca_certificate="$(printf '%s\n' "${ca_read_output}" | jq -r '.data.certificate')"
+    return 0
+  fi
+
+  if is_missing_operator_ca_error "${ca_read_output}"; then
+    return 1
+  fi
+
+  print_operator_ca_read_error "${ca_read_exit_code}"
+  return 2
+}
+
+generate_operator_ca() {
+  echo "Generating internal Operator CA. The CA private key will remain inside OpenBao."
+  token_exec "${root_token}" bao write -format=json "${OPENBAO_PKI_MOUNT}/root/generate/internal" \
+    "common_name=${OPENBAO_OPERATOR_CA_COMMON_NAME}" \
+    "ttl=${OPENBAO_OPERATOR_CA_TTL}" >/dev/null
+}
+
 print_plan() {
   cat <<PLAN
 Operator PKI configuration plan:
@@ -160,25 +214,27 @@ echo "Tuning Operator PKI max TTL."
 token_exec "${root_token}" bao secrets tune -max-lease-ttl="${OPENBAO_OPERATOR_CA_TTL}" "${OPENBAO_PKI_MOUNT}" >/dev/null
 
 echo "Checking Operator CA."
-set +e
-ca_read_output="$(token_exec "${root_token}" bao read -format=json "${OPENBAO_PKI_MOUNT}/cert/ca" 2>&1)"
-ca_read_exit_code="$?"
-set -e
-
-if [[ "${ca_read_exit_code}" -eq 0 ]] && printf '%s\n' "${ca_read_output}" | jq -e '.data.certificate // empty' >/dev/null; then
-  ca_certificate="$(printf '%s\n' "${ca_read_output}" | jq -r '.data.certificate')"
-  ca_fingerprint="$(printf '%s\n' "${ca_certificate}" | sha256sum | awk '{print $1}')"
-  ca_size_bytes="$(printf '%s\n' "${ca_certificate}" | wc -c | awk '{print $1}')"
+# An empty PKI mount is expected immediately after first enable/tune. Treat
+# OpenBao "no CA yet" responses as a generation trigger, not a fatal error.
+if read_operator_ca; then
   echo "Operator CA already exists; leaving existing CA unchanged."
-  echo "Existing Operator CA safe metadata: sha256=${ca_fingerprint}, pem_bytes=${ca_size_bytes}"
-elif printf '%s\n' "${ca_read_output}" | grep -Eiq 'No value found|missing|not found|404'; then
-  echo "Generating internal Operator CA. The CA private key will remain inside OpenBao."
-  token_exec "${root_token}" bao write -format=json "${OPENBAO_PKI_MOUNT}/root/generate/internal" \
-    "common_name=${OPENBAO_OPERATOR_CA_COMMON_NAME}" \
-    "ttl=${OPENBAO_OPERATOR_CA_TTL}" >/dev/null
+  print_operator_ca_metadata "Existing Operator CA safe metadata"
 else
-  echo "ERROR: could not check Operator CA." >&2
-  exit "${ca_read_exit_code}"
+  ca_read_status="$?"
+  if [[ "${ca_read_status}" -eq 1 ]]; then
+    generate_operator_ca
+    if read_operator_ca; then
+      print_operator_ca_metadata "Generated Operator CA safe metadata"
+    else
+      ca_read_status="$?"
+      if [[ "${ca_read_status}" -eq 1 ]]; then
+        fail "Operator CA was generated but the public CA certificate is still missing at mount ${OPENBAO_PKI_MOUNT}."
+      fi
+      exit "${ca_read_status}"
+    fi
+  else
+    exit "${ca_read_status}"
+  fi
 fi
 
 echo "Creating or updating operator-vault issuance role."
