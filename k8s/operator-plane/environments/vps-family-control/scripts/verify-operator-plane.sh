@@ -63,7 +63,7 @@ run_verify_script() {
     ok "${label} verification script passed"
   else
     if [[ "${failure_mode}" = "warn" ]]; then
-      warn "${label} verification script did not pass; treat as TODO until Operator PKI is configured"
+      warn "${label} verification script did not pass; treat as TODO until the corresponding explicit phase is complete"
     else
       fail_component "${label} verification script failed"
     fi
@@ -193,7 +193,7 @@ check_openbao_pod() {
 print_todos() {
   echo
   echo "== TODO =="
-  warn "operator-vault leaf TLS issuance and rotation are not implemented yet"
+  warn "operator-vault TLS rotation is explicit and may not have been run yet"
   warn "operator-vault public endpoint is not implemented yet"
 }
 
@@ -250,6 +250,7 @@ run_verify_script "operator-artifacts" "${env_dir}/operator-artifacts/scripts/ve
 run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-openbao-global-audit.sh"
 run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh"
 run_verify_script "Operator PKI" "${env_dir}/operator-pki/scripts/verify-openbao-operator-pki.sh" "warn" --env-file "${env_file}"
+run_verify_script "operator-vault TLS runtime" "${env_dir}/operator-pki/scripts/verify-operator-vault-tls-runtime.sh" "warn" --env-file "${env_file}"
 
 check_k3s_node_ready
 check_trading_namespace

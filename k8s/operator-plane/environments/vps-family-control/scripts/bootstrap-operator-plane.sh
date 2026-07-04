@@ -11,6 +11,7 @@ run_openbao="false"
 run_operator_secret_sync="false"
 run_operator_artifacts="false"
 run_operator_pki="false"
+run_operator_vault_tls="false"
 
 summary_ok=()
 summary_warn=()
@@ -18,7 +19,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--env-file <path>] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -30,6 +31,7 @@ Options:
   --operator-secret-sync Import/configure/apply operator-plane secret sync.
   --operator-artifacts  Run operator-artifacts bootstrap.
   --operator-pki        Configure and verify Operator PKI foundation.
+  --operator-vault-tls  Issue and install operator-vault runtime TLS, then restart OpenBao.
   --env-file <path>     Path to the central operator-plane.env file.
   --dry-run             Print commands without running component scripts.
   --help                Show this help.
@@ -39,6 +41,8 @@ Safety:
   - It does not delete or rotate secrets.
   - It does not print secret values.
   - It does not initialize OpenBao directly.
+  - --operator-vault-tls is intentionally explicit because it rotates runtime
+    TLS and restarts only the configured OpenBao pod.
 EOF
 }
 
@@ -193,12 +197,31 @@ phase_operator_pki() {
 
   cat <<'EOF'
 Safe TODO:
-  - issue and install operator-vault leaf TLS in a later explicit phase
+  - run --operator-vault-tls as the next explicit phase when ready
   - keep operator-vault private and do not expose it publicly yet
 EOF
 
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "Operator PKI phase completed"
+  fi
+}
+
+phase_operator_vault_tls() {
+  echo
+  echo "== operator-vault TLS =="
+  local pki_scripts="${env_dir}/operator-pki/scripts"
+  local fail_count_before="${#summary_fail[@]}"
+
+  cat <<'EOF'
+This phase is not included in --all yet because it rotates OpenBao runtime TLS
+and restarts the configured OpenBao pod. Run it explicitly during this stage.
+EOF
+
+  run_if_executable "operator-vault TLS rotation" "${pki_scripts}/rotate-operator-vault-tls-from-operator-pki.sh" "true" --env-file "${env_file}"
+  run_if_executable "operator-vault TLS runtime verify" "${pki_scripts}/verify-operator-vault-tls-runtime.sh" "true" --env-file "${env_file}"
+
+  if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
+    ok "operator-vault TLS phase completed"
   fi
 }
 
@@ -256,6 +279,9 @@ while [[ "$#" -gt 0 ]]; do
     --operator-pki)
       run_operator_pki="true"
       ;;
+    --operator-vault-tls)
+      run_operator_vault_tls="true"
+      ;;
     --env-file)
       [[ "$#" -ge 2 ]] || {
         echo "--env-file requires a path." >&2
@@ -280,7 +306,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
   usage >&2
   exit 1
 fi
@@ -305,6 +331,10 @@ fi
 
 if [[ "${run_operator_pki}" = "true" ]]; then
   phase_operator_pki
+fi
+
+if [[ "${run_operator_vault_tls}" = "true" ]]; then
+  phase_operator_vault_tls
 fi
 
 phase_summary

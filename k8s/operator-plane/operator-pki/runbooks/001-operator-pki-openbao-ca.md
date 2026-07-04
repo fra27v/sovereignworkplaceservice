@@ -68,9 +68,15 @@ Issuance JSON contains private key material and must not be printed, committed,
 or retained by default. Debug retention of issuance JSON is unsupported in the
 first implementation.
 
-The future rotation step will write the issued leaf certificate and private key
-directly to the runtime OpenBao TLS path using safe permissions. That runtime
-write is not implemented in this foundation step.
+The explicit rotation step writes the issued leaf certificate and private key
+directly to the runtime OpenBao TLS path using safe permissions:
+
+```bash
+sudo k8s/operator-plane/environments/vps-family-control/operator-pki/scripts/rotate-operator-vault-tls-from-operator-pki.sh
+```
+
+The leaf private key is installed only as `OPENBAO_TLS_DIR/tls.key`. The
+issuance JSON is not saved, and the CA private key remains inside OpenBao.
 
 ## Trust Distribution
 
@@ -91,13 +97,16 @@ secret sync Job remains fail-closed.
 
 ## Replacement Of Bootstrap TLS
 
-Operator PKI will replace the bootstrap or self-signed OpenBao TLS material in
-a later phase. This runbook only establishes the CA and the issuance role.
+Operator PKI can replace the bootstrap or self-signed OpenBao TLS material with
+an explicit `operator-vault` leaf rotation.
 
 The environment bootstrap and verify orchestrators include Operator PKI
-configure and verify phases. Bootstrap configures CA and role state only; it
-does not rotate existing OpenBao TLS and does not expose `operator-vault`.
-Leaf TLS issuance and rotation is the next explicit phase.
+configure and verify phases. Bootstrap configures CA and role state only. The
+`--operator-vault-tls` phase is separate because it rotates OpenBao runtime TLS
+and restarts only `openbao-global-0`.
+
+This does not expose `operator-vault` publicly. Traefik TCP passthrough is a
+later phase, and Tenant OpenBao remains out of scope.
 
 Destructive reinstall testing remains deferred until Operator PKI,
 operator-vault TLS rotation, artifact publication, and final debug points are
