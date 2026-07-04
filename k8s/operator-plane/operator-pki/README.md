@@ -42,3 +42,11 @@ only as `OPENBAO_TLS_DIR/tls.key`. The CA private key remains inside OpenBao.
 The rotation script restarts only `openbao-global-0`. It does not expose
 `operator-vault` publicly, does not add Traefik TCP passthrough, and does not
 implement Tenant OpenBao. Those remain later phases.
+
+Before runtime TLS rotation, bootstrap TLS may use `/openbao/tls/tls.crt` as
+the in-pod client trust anchor. After rotation, `/openbao/tls/tls.crt` is the
+leaf certificate and must not be treated as the long-term CA. OpenBao client
+scripts must use `/openbao/tls/operator-ca-bundle.pem` as the trust anchor when
+it is present, falling back to `/openbao/tls/tls.crt` only for the bootstrap
+self-signed phase. This trust-path fix is required before executing
+operator-vault TLS rotation.

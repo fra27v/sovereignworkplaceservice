@@ -10,9 +10,9 @@ env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 dry_run="false"
 init_file=""
 vault_addr="https://127.0.0.1:8200"
-vault_cacert="/openbao/tls/tls.crt"
+vault_cacert=""
+vault_cacert_fallback=""
 bao_addr="${vault_addr}"
-bao_cacert="${vault_cacert}"
 tmp_dir=""
 target_tmp_files=()
 
@@ -73,8 +73,8 @@ token_exec() {
   shift
 
   printf '%s' "${token}" | kubectl -n "${OPENBAO_NAMESPACE}" exec -i "${OPENBAO_POD_NAME}" -- \
-    sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$4"; shift 4; "$@"' \
-    sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "$@"
+    sh -c 'IFS= read -r BAO_TOKEN; client_cacert="$3"; if [ -r "$2" ]; then client_cacert="$2"; fi; export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$client_cacert" BAO_ADDR="$4" BAO_CACERT="$client_cacert"; shift 4; "$@"' \
+    sh "${vault_addr}" "${vault_cacert}" "${vault_cacert_fallback}" "${bao_addr}" "$@"
 }
 
 read_root_token() {
@@ -191,6 +191,8 @@ restart_openbao_pod() {
   done
 
   kubectl -n "${OPENBAO_NAMESPACE}" wait --for=condition=Ready "pod/${OPENBAO_POD_NAME}" --timeout=180s
+  kubectl -n "${OPENBAO_NAMESPACE}" exec "${OPENBAO_POD_NAME}" -- \
+    sh -c 'VAULT_ADDR=https://127.0.0.1:8200 VAULT_CACERT=/openbao/tls/operator-ca-bundle.pem BAO_ADDR=https://127.0.0.1:8200 BAO_CACERT=/openbao/tls/operator-ca-bundle.pem bao status >/dev/null'
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -228,6 +230,8 @@ if [[ "${dry_run}" == "false" ]]; then
 fi
 
 load_operator_plane_env "${env_file}" "true" "${required_env_keys[@]}"
+vault_cacert="$(operator_plane_env_openbao_client_cacert_in_pod)"
+vault_cacert_fallback="$(operator_plane_env_openbao_bootstrap_cacert_in_pod)"
 derive_paths
 print_plan
 

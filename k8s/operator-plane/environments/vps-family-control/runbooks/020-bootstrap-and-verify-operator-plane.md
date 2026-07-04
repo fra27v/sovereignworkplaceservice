@@ -77,6 +77,14 @@ remain later phases. The `--operator-vault-tls` phase is intentionally explicit
 and is not included in `--all` yet because it rotates OpenBao runtime TLS and
 restarts only `openbao-global-0`.
 
+Before runtime TLS rotation, bootstrap TLS may use `/openbao/tls/tls.crt` as
+the in-pod OpenBao client trust anchor. After rotation, `tls.crt` is the leaf
+certificate and `/openbao/tls/operator-ca-bundle.pem` is the correct trust
+anchor. Scripts that run OpenBao clients inside the pod must prefer the
+Operator CA bundle when it is present and fall back to `tls.crt` only for the
+bootstrap self-signed phase. This trust-path fix is required before running
+`--operator-vault-tls`.
+
 ## Current TODO Phases
 
 Future work:

@@ -18,9 +18,9 @@ bound_service_account_namespace="operator-secret-sync"
 role_ttl="15m"
 init_file=""
 vault_addr="https://127.0.0.1:8200"
-vault_cacert="/openbao/tls/tls.crt"
+vault_cacert=""
+vault_cacert_fallback=""
 bao_addr="${vault_addr}"
-bao_cacert="${vault_cacert}"
 
 usage() {
   cat <<EOF
@@ -70,8 +70,8 @@ token_exec() {
   shift
 
   printf '%s' "${token}" | kubectl -n "${namespace}" exec -i "${openbao_pod}" -- \
-    sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$4"; shift 4; "$@"' \
-    sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "$@"
+    sh -c 'IFS= read -r BAO_TOKEN; client_cacert="$3"; if [ -r "$2" ]; then client_cacert="$2"; fi; export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$client_cacert" BAO_ADDR="$4" BAO_CACERT="$client_cacert"; shift 4; "$@"' \
+    sh "${vault_addr}" "${vault_cacert}" "${vault_cacert_fallback}" "${bao_addr}" "$@"
 }
 
 token_exec_with_policy_file() {
@@ -85,13 +85,17 @@ token_exec_with_policy_file() {
   } | kubectl -n "${namespace}" exec -i "${openbao_pod}" -- \
     sh -c '
       IFS= read -r BAO_TOKEN
-      export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$4"
+      client_cacert="$3"
+      if [ -r "$2" ]; then
+        client_cacert="$2"
+      fi
+      export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$client_cacert" BAO_ADDR="$4" BAO_CACERT="$client_cacert"
       shift 4
       policy_file="$(mktemp)"
       trap "rm -f \"${policy_file}\"" EXIT
       cat > "${policy_file}"
       bao policy write "$1" "${policy_file}" >/dev/null
-    ' sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "${target_policy_name}"
+    ' sh "${vault_addr}" "${vault_cacert}" "${vault_cacert_fallback}" "${bao_addr}" "${target_policy_name}"
 }
 
 apply_tokenreview_binding() {
@@ -143,6 +147,8 @@ source "${env_loader}"
 if [[ -f "${env_file}" ]]; then
   load_operator_plane_env "${env_file}" "true"
 fi
+vault_cacert="$(operator_plane_env_openbao_client_cacert_in_pod)"
+vault_cacert_fallback="$(operator_plane_env_openbao_bootstrap_cacert_in_pod)"
 
 if [[ -n "${init_file}" ]]; then
   [[ -f "${init_file}" ]] || fail "Missing init file: ${init_file}"

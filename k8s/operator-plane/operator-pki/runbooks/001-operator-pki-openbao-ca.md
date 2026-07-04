@@ -78,6 +78,13 @@ sudo k8s/operator-plane/environments/vps-family-control/operator-pki/scripts/rot
 The leaf private key is installed only as `OPENBAO_TLS_DIR/tls.key`. The
 issuance JSON is not saved, and the CA private key remains inside OpenBao.
 
+Before this rotation, bootstrap TLS may use `/openbao/tls/tls.crt` as the
+in-pod client trust anchor. After rotation, `/openbao/tls/tls.crt` is the leaf
+certificate and `/openbao/tls/operator-ca-bundle.pem` is the trust anchor.
+OpenBao admin scripts must prefer the Operator CA bundle when present and fall
+back to `tls.crt` only for the bootstrap self-signed phase. This trust-path
+transition must be in place before executing the runtime TLS rotation.
+
 ## Trust Distribution
 
 The public Operator CA bundle is exported as:

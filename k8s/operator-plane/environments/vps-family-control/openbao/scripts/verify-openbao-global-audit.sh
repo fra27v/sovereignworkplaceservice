@@ -11,9 +11,9 @@ init_file=""
 audit_path="file/"
 audit_file_path="/openbao/audit/audit.log"
 vault_addr="https://127.0.0.1:8200"
-vault_cacert="/openbao/tls/tls.crt"
+vault_cacert=""
+vault_cacert_fallback=""
 bao_addr="${vault_addr}"
-bao_cacert="${vault_cacert}"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -25,8 +25,8 @@ token_exec() {
   shift
 
   printf '%s' "${token}" | kubectl -n "${namespace}" exec -i "${pod_name}" -- \
-    sh -c 'IFS= read -r BAO_TOKEN; export BAO_TOKEN VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$4"; shift 4; "$@"' \
-    sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "$@"
+    sh -c 'IFS= read -r BAO_TOKEN; client_cacert="$3"; if [ -r "$2" ]; then client_cacert="$2"; fi; export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$client_cacert" BAO_ADDR="$4" BAO_CACERT="$client_cacert"; shift 4; "$@"' \
+    sh "${vault_addr}" "${vault_cacert}" "${vault_cacert_fallback}" "${bao_addr}" "$@"
 }
 
 command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
@@ -37,6 +37,8 @@ source "${env_loader}"
 if [[ -f "${env_file}" ]]; then
   load_operator_plane_env "${env_file}" "true"
 fi
+vault_cacert="$(operator_plane_env_openbao_client_cacert_in_pod)"
+vault_cacert_fallback="$(operator_plane_env_openbao_bootstrap_cacert_in_pod)"
 
 init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"
 

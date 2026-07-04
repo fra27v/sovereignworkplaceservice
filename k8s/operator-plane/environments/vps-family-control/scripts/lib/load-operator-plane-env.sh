@@ -82,6 +82,24 @@ operator_plane_env_resolve_openbao_bootstrap_init_file() {
   printf '%s' "${path}"
 }
 
+operator_plane_env_openbao_operator_ca_bundle_in_pod() {
+  printf '%s' "/openbao/tls/operator-ca-bundle.pem"
+}
+
+operator_plane_env_openbao_bootstrap_cacert_in_pod() {
+  printf '%s' "/openbao/tls/tls.crt"
+}
+
+operator_plane_env_openbao_client_cacert_in_pod() {
+  # During bootstrap, tls.crt is the self-signed leaf and may be usable as a
+  # trust anchor. After Operator PKI rotation, tls.crt is only the leaf
+  # certificate and operator-ca-bundle.pem is the correct client CA bundle.
+  # Callers that run inside the OpenBao pod should prefer this path and fall
+  # back to operator_plane_env_openbao_bootstrap_cacert_in_pod only when the
+  # bundle is not present yet.
+  operator_plane_env_openbao_operator_ca_bundle_in_pod
+}
+
 operator_plane_env_key_allowed() {
   local key="$1"
   local allowed
