@@ -174,3 +174,18 @@ The runner image must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `opens
 The bootstrap env parser is strict and does not execute shell from `operator-plane.bootstrap-secrets.env`.
 
 Operator PKI is the future source for OpenBao CA bundle trust for in-cluster clients. Until that public CA bundle is safely projected into the sync namespace, the OpenBao CA bundle projection is required and fail-closed: install and verify check only ConfigMap metadata and key presence, and the sync script exits before OpenBao login if the mounted CA bundle is missing, empty, or unreadable.
+
+The public Operator CA bundle is also published as an operator artifact for
+tenant `family-infra-01`. The CA bundle is public trust material; the private
+Operator CA key remains inside OpenBao, and the `operator-vault` leaf private
+key remains only in the OpenBao runtime TLS directory.
+
+Artifact paths:
+
+```text
+/tenants/family-infra-01/trust/operator-ca-bundle.pem
+/tenants/family-infra-01/trust/operator-ca-bundle.pem.sha256
+```
+
+Do not paste BasicAuth tokens in logs or docs. Publishing this artifact does
+not expose `operator-vault`.

@@ -19,6 +19,7 @@ operator_plane_allowed_env_keys=(
   OPENBAO_OPERATOR_VAULT_IP_SANS
   OPERATOR_PKI_PUBLIC_DIR
   OPENBAO_TLS_DIR
+  OPERATOR_ARTIFACTS_PUBLIC_DIR
 )
 
 operator_plane_env_fail() {

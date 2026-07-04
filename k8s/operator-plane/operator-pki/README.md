@@ -50,3 +50,16 @@ scripts must use `/openbao/tls/operator-ca-bundle.pem` as the trust anchor when
 it is present, falling back to `/openbao/tls/tls.crt` only for the bootstrap
 self-signed phase. This trust-path fix is required before executing
 operator-vault TLS rotation.
+
+The public Operator CA bundle may be published through operator-artifacts for
+tenant `family-infra-01`:
+
+```text
+/tenants/family-infra-01/trust/operator-ca-bundle.pem
+/tenants/family-infra-01/trust/operator-ca-bundle.pem.sha256
+```
+
+This publishes only public CA material. The private Operator CA key remains
+inside OpenBao, the `operator-vault` leaf private key remains only in the
+OpenBao runtime TLS directory, and publishing the artifact does not expose
+`operator-vault`.
