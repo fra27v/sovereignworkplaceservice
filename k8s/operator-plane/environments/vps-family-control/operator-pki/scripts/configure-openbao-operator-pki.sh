@@ -75,7 +75,7 @@ is_missing_operator_ca_or_issuer_error() {
   local output="$1"
 
   printf '%s\n' "${output}" | grep -Eiq \
-    'No value found|missing|not found|404|no issuers|no issuing certificate|no certificate|no ca certificate|certificate is nil|issuer .*not .*configured'
+    'No value found|missing|not found|404|no issuers|no issuing certificate|no default issuer currently configured|no certificate|no ca certificate|certificate is nil|issuer .*not .*configured'
 }
 
 print_operator_ca_metadata() {
@@ -106,6 +106,15 @@ operator_ca_issuer_list_has_entries() {
   ' >/dev/null
 }
 
+operator_ca_issuer_list_is_empty() {
+  jq -e '
+    (type == "array" and length == 0)
+    or (type == "object" and length == 0)
+    or (type == "object" and has("keys") and ((.keys? // []) | length) == 0)
+    or (type == "object" and (.data? | type) == "object" and (.data | has("keys")) and ((.data.keys? // []) | length) == 0)
+  ' >/dev/null
+}
+
 operator_ca_has_issuer() {
   local issuer_output issuer_exit_code
 
@@ -114,10 +123,19 @@ operator_ca_has_issuer() {
   issuer_exit_code="$?"
   set -e
 
-  if [[ "${issuer_exit_code}" -eq 0 ]]; then
+  # OpenBao/bao may return valid empty JSON such as {} with exit code 2 for an
+  # empty issuer list. That is expected for a newly enabled PKI mount before
+  # root generation, and must be treated as "CA missing", not as fatal.
+  if printf '%s\n' "${issuer_output}" | jq -e . >/dev/null 2>&1; then
     if printf '%s\n' "${issuer_output}" | operator_ca_issuer_list_has_entries; then
       return 0
     fi
+    if printf '%s\n' "${issuer_output}" | operator_ca_issuer_list_is_empty; then
+      return 1
+    fi
+  fi
+
+  if [[ "${issuer_exit_code}" -eq 0 ]]; then
     return 1
   fi
 
@@ -142,8 +160,28 @@ read_public_operator_ca_certificate() {
     return 0
   fi
 
+  if is_missing_operator_ca_or_issuer_error "${ca_read_output}"; then
+    return 1
+  fi
+
   print_operator_ca_command_error "read the public Operator CA certificate" "${ca_read_exit_code}"
   return 2
+}
+
+require_public_operator_ca_certificate() {
+  local context="$1"
+  local ca_read_status
+
+  if read_public_operator_ca_certificate; then
+    return 0
+  fi
+
+  ca_read_status="$?"
+  if [[ "${ca_read_status}" -eq 1 ]]; then
+    fail "Public Operator CA certificate is missing at mount ${OPENBAO_PKI_MOUNT} after ${context}."
+  fi
+
+  exit "${ca_read_status}"
 }
 
 generate_operator_ca() {
@@ -247,13 +285,13 @@ echo "Checking Operator CA."
 # after existence or generation so it can feed safe metadata and bundle export.
 if operator_ca_has_issuer; then
   echo "Operator CA already exists; leaving existing CA unchanged."
-  read_public_operator_ca_certificate || exit "$?"
+  require_public_operator_ca_certificate "issuer detection reported an existing CA"
   print_operator_ca_metadata "Existing Operator CA safe metadata"
 else
   ca_issuer_status="$?"
   if [[ "${ca_issuer_status}" -eq 1 ]]; then
     generate_operator_ca
-    read_public_operator_ca_certificate || exit "$?"
+    require_public_operator_ca_certificate "internal Operator CA generation"
     print_operator_ca_metadata "Generated Operator CA safe metadata"
   else
     exit "${ca_issuer_status}"
