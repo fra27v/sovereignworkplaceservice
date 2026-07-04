@@ -71,11 +71,11 @@ read_root_token() {
   [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
 }
 
-is_missing_operator_ca_or_issuer_error() {
+is_missing_operator_ca_error() {
   local output="$1"
 
   printf '%s\n' "${output}" | grep -Eiq \
-    'No value found|missing|not found|404|no issuers|no issuing certificate|no default issuer currently configured|no certificate|no ca certificate|certificate is nil|issuer .*not .*configured'
+    'No value found|missing|not found|404|no issuing certificate|no default issuer currently configured|no certificate|no ca certificate|certificate is nil'
 }
 
 print_operator_ca_metadata() {
@@ -98,55 +98,6 @@ print_operator_ca_command_error() {
   echo "Raw OpenBao output was suppressed to avoid printing sensitive or environment-specific context." >&2
 }
 
-operator_ca_issuer_list_has_entries() {
-  jq -e '
-    (type == "array" and length > 0)
-    or ((.keys? // []) | length > 0)
-    or ((.data.keys? // []) | length > 0)
-  ' >/dev/null
-}
-
-operator_ca_issuer_list_is_empty() {
-  jq -e '
-    (type == "array" and length == 0)
-    or (type == "object" and length == 0)
-    or (type == "object" and has("keys") and ((.keys? // []) | length) == 0)
-    or (type == "object" and (.data? | type) == "object" and (.data | has("keys")) and ((.data.keys? // []) | length) == 0)
-  ' >/dev/null
-}
-
-operator_ca_has_issuer() {
-  local issuer_output issuer_exit_code
-
-  set +e
-  issuer_output="$(token_exec "${root_token}" bao list -format=json "${OPENBAO_PKI_MOUNT}/issuers" 2>&1)"
-  issuer_exit_code="$?"
-  set -e
-
-  # OpenBao/bao may return valid empty JSON such as {} with exit code 2 for an
-  # empty issuer list. That is expected for a newly enabled PKI mount before
-  # root generation, and must be treated as "CA missing", not as fatal.
-  if printf '%s\n' "${issuer_output}" | jq -e . >/dev/null 2>&1; then
-    if printf '%s\n' "${issuer_output}" | operator_ca_issuer_list_has_entries; then
-      return 0
-    fi
-    if printf '%s\n' "${issuer_output}" | operator_ca_issuer_list_is_empty; then
-      return 1
-    fi
-  fi
-
-  if [[ "${issuer_exit_code}" -eq 0 ]]; then
-    return 1
-  fi
-
-  if is_missing_operator_ca_or_issuer_error "${issuer_output}"; then
-    return 1
-  fi
-
-  print_operator_ca_command_error "list Operator PKI issuers" "${issuer_exit_code}"
-  return 2
-}
-
 read_public_operator_ca_certificate() {
   local ca_read_output ca_read_exit_code
 
@@ -160,7 +111,7 @@ read_public_operator_ca_certificate() {
     return 0
   fi
 
-  if is_missing_operator_ca_or_issuer_error "${ca_read_output}"; then
+  if is_missing_operator_ca_error "${ca_read_output}"; then
     return 1
   fi
 
@@ -280,21 +231,20 @@ echo "Tuning Operator PKI max TTL."
 token_exec "${root_token}" bao secrets tune -max-lease-ttl="${OPENBAO_OPERATOR_CA_TTL}" "${OPENBAO_PKI_MOUNT}" >/dev/null
 
 echo "Checking Operator CA."
-# An enabled PKI mount with no issuer or CA is expected after first enable/tune.
-# Issuer presence decides whether a CA already exists; cert/ca is read only
-# after existence or generation so it can feed safe metadata and bundle export.
-if operator_ca_has_issuer; then
+# For an empty PKI mount, OpenBao returns "no default issuer currently
+# configured" when reading cert/ca. That is expected before root generation and
+# should trigger CA generation, not fail the first run.
+if read_public_operator_ca_certificate; then
   echo "Operator CA already exists; leaving existing CA unchanged."
-  require_public_operator_ca_certificate "issuer detection reported an existing CA"
   print_operator_ca_metadata "Existing Operator CA safe metadata"
 else
-  ca_issuer_status="$?"
-  if [[ "${ca_issuer_status}" -eq 1 ]]; then
+  ca_status="$?"
+  if [[ "${ca_status}" -eq 1 ]]; then
     generate_operator_ca
     require_public_operator_ca_certificate "internal Operator CA generation"
     print_operator_ca_metadata "Generated Operator CA safe metadata"
   else
-    exit "${ca_issuer_status}"
+    exit "${ca_status}"
   fi
 fi
 
