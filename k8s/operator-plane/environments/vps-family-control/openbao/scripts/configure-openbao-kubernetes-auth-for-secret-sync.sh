@@ -31,8 +31,7 @@ secret sync Job.
 
 Options:
   --init-file <path>  OpenBao init JSON containing a bootstrap/admin token.
-                     Defaults to OPENBAO_BOOTSTRAP_INIT_FILE from operator-plane.env,
-                     then the operator user's bootstrap path under sudo, then HOME.
+                     Defaults to OPENBAO_BOOTSTRAP_INIT_FILE from operator-plane.env.
   --help             Show this help.
 
 Safety:

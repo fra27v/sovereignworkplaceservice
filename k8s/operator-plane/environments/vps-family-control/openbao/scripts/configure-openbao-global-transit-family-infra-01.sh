@@ -81,7 +81,7 @@ root_token="$(jq -r '.root_token // empty' "${init_file}")"
 [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
 
 echo "Checking Global OpenBao status."
-status_output="$(token_exec "${root_token}" bao status -tls-skip-verify)"
+status_output="$(token_exec "${root_token}" bao status)"
 printf '%s\n' "${status_output}"
 
 if ! printf '%s\n' "${status_output}" | grep -q 'Initialized[[:space:]]*true'; then

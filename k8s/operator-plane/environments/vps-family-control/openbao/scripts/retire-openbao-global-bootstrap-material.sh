@@ -21,11 +21,8 @@ if [[ -f "${env_file}" ]]; then
   load_operator_plane_env "${env_file}" "true"
 fi
 
-if [[ -n "${OPENBAO_BOOTSTRAP_INIT_FILE:-}" ]]; then
-  init_file="${OPENBAO_BOOTSTRAP_INIT_FILE}"
-else
-  init_file="$(operator_plane_env_default_openbao_bootstrap_init_file)"
-fi
+[[ -n "${OPENBAO_BOOTSTRAP_INIT_FILE:-}" ]] || fail "OPENBAO_BOOTSTRAP_INIT_FILE must be set in operator-plane.env."
+init_file="${OPENBAO_BOOTSTRAP_INIT_FILE}"
 
 echo "This script retires only the local Global OpenBao init JSON:"
 echo "${init_file}"

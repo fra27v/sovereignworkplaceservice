@@ -1,15 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 namespace="openbao-operator"
 pod_name="openbao-global-0"
-bootstrap_dir="${HOME}/openbao-bootstrap/openbao-global"
-init_file="${bootstrap_dir}/openbao-global-init.json"
+init_file=""
+bootstrap_dir=""
+vault_addr="https://127.0.0.1:8200"
+vault_cacert="/openbao/tls/tls.crt"
+bao_addr="${vault_addr}"
+bao_cacert="${vault_cacert}"
 
 fail() {
   echo "ERROR: $*" >&2
   exit 1
 }
+
+bao_exec() {
+  kubectl -n "${namespace}" exec "${pod_name}" -- \
+    sh -c 'export VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$4"; shift 4; "$@"' \
+    sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "${bao_cacert}" "$@"
+}
+
+[[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
+[[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
+load_operator_plane_env "${env_file}" "true" OPENBAO_BOOTSTRAP_INIT_FILE
+init_file="${OPENBAO_BOOTSTRAP_INIT_FILE}"
+bootstrap_dir="$(dirname -- "${init_file}")"
 
 mkdir -p "${bootstrap_dir}"
 chmod 0700 "${bootstrap_dir}"
@@ -21,7 +43,7 @@ fi
 echo "Checking Global OpenBao initialization status."
 status_output="$(
   set +e
-  kubectl -n "${namespace}" exec "${pod_name}" -- bao status -tls-skip-verify 2>&1
+  bao_exec bao status 2>&1
   status_code="$?"
   set -e
   printf '\n__BAO_STATUS_EXIT_CODE__=%s\n' "${status_code}"
@@ -46,8 +68,7 @@ if ! printf '%s\n' "${status_body}" | grep -q 'Initialized[[:space:]]*false'; th
 fi
 
 echo "Global OpenBao is not initialized. Initializing now."
-kubectl -n "${namespace}" exec "${pod_name}" -- \
-  bao operator init -format=json -tls-skip-verify > "${init_file}"
+bao_exec bao operator init -format=json > "${init_file}"
 chmod 0600 "${init_file}"
 
 if [[ ! -s "${init_file}" ]]; then
@@ -59,4 +80,4 @@ echo "WARNING: this file contains the root token and recovery material."
 echo "Never commit it, paste it into chat, or print it in logs."
 
 echo "Final Global OpenBao status:"
-kubectl -n "${namespace}" exec "${pod_name}" -- bao status -tls-skip-verify
+bao_exec bao status
