@@ -17,6 +17,19 @@ The environment-level operator entrypoints are:
 - `scripts/bootstrap-operator-plane.sh`
 - `scripts/verify-operator-plane.sh`
 
+On Linux and on the VPS target, use normal `bash -n` syntax checks before
+running shell scripts. On Windows hosts without WSL, `bash` may resolve to the
+WSL stub and fail because no WSL distribution is installed. Do not interpret
+that WSL-stub failure as a script syntax failure. Use Git Bash explicitly for
+local syntax checks instead:
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" -n <script>
+```
+
+Prefer validating deployment scripts on the Linux VPS before
+execution-sensitive phases.
+
 `operator-plane.env` is the single normal operational env file for this
 environment. Copy `operator-plane.env.example` to `operator-plane.env`, keep it
 out of Git, and set permissions to `0600`. Component-specific `.env.example`

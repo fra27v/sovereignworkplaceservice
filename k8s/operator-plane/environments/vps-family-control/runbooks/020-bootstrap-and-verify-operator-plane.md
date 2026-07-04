@@ -13,6 +13,23 @@ Use these environment-level scripts as the operator interface:
 
 Component scripts remain available under `traefik/scripts`, `openbao/scripts`, and `operator-artifacts/scripts` for debugging and explicit runbook steps. The final operator interface should converge on bootstrap plus verify.
 
+## Local Shell Syntax Checks
+
+On Linux and on the VPS target, use normal `bash -n` syntax checks before
+running shell scripts.
+
+On Windows hosts without WSL, `bash` may resolve to the WSL stub and fail
+because no WSL distribution is installed. Do not interpret that WSL-stub
+failure as a script syntax failure. Use Git Bash explicitly for local syntax
+checks instead:
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" -n <script>
+```
+
+Prefer validating deployment scripts on the Linux VPS before
+execution-sensitive phases.
+
 ## Environment Entry Point
 
 `k8s/operator-plane/environments/vps-family-control/operator-plane.env` is the
