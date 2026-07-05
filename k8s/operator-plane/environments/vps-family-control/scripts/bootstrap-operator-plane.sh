@@ -8,6 +8,7 @@ dry_run="false"
 env_file="${env_dir}/operator-plane.env"
 run_traefik="false"
 run_openbao="false"
+run_operator_secret_sync_ca_bundle="false"
 run_operator_secret_sync="false"
 run_operator_artifacts="false"
 run_operator_pki="false"
@@ -19,28 +20,30 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync-ca-bundle] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
 
 Options:
-  --all                 Run all currently supported phases.
-  --traefik             Run Traefik ACME DNS-01 OVH bootstrap.
-  --openbao             Run Global OpenBao baseline verification only.
-  --operator-secret-sync Import/configure/apply operator-plane secret sync.
-  --operator-artifacts  Run operator-artifacts bootstrap.
-  --operator-pki        Configure and verify Operator PKI foundation.
-  --operator-vault-tls  Issue and install operator-vault runtime TLS, then restart OpenBao.
-  --env-file <path>     Path to the central operator-plane.env file.
-  --dry-run             Print commands without running component scripts.
-  --help                Show this help.
+  --all                              Run all currently supported phases.
+  --traefik                          Run Traefik ACME DNS-01 OVH bootstrap.
+  --openbao                          Run Global OpenBao baseline verification only.
+  --operator-secret-sync-ca-bundle   Project OpenBao CA bundle into operator-secret-sync namespace.
+  --operator-secret-sync             Import/configure/apply operator-plane secret sync.
+  --operator-artifacts               Run operator-artifacts bootstrap.
+  --operator-pki                     Configure and verify Operator PKI foundation.
+  --operator-vault-tls               Issue and install operator-vault runtime TLS, then restart OpenBao.
+  --env-file <path>                  Path to the central operator-plane.env file.
+  --dry-run                          Print commands without running component scripts.
+  --help                             Show this help.
 
 Safety:
   - This script is non-destructive and idempotent.
   - It does not delete or rotate secrets.
   - It does not print secret values.
   - It does not initialize OpenBao directly.
+  - --operator-secret-sync-ca-bundle projects public CA trust material only.
   - --operator-vault-tls is intentionally explicit because it rotates runtime
     TLS and restarts only the configured OpenBao pod.
 EOF
@@ -162,6 +165,9 @@ phase_operator_secret_sync() {
   local sync_scripts="${env_dir}/operator-secret-sync/scripts"
   local fail_count_before="${#summary_fail[@]}"
 
+  if [[ "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
+    run_if_executable "OpenBao CA bundle projection" "${sync_scripts}/install-openbao-ca-bundle-configmap.sh" "false" --env-file "${env_file}"
+  fi
   run_if_executable "operator-plane bootstrap secret import" "${openbao_scripts}/import-operator-plane-bootstrap-secrets.sh" "false"
   run_if_executable "OpenBao Kubernetes auth for secret sync" "${openbao_scripts}/configure-openbao-kubernetes-auth-for-secret-sync.sh" "false"
   run_if_executable "operator-secret-sync install" "${sync_scripts}/install-operator-secret-sync.sh" "false"
@@ -260,6 +266,7 @@ while [[ "$#" -gt 0 ]]; do
     --all)
       run_traefik="true"
       run_openbao="true"
+      run_operator_secret_sync_ca_bundle="true"
       run_operator_secret_sync="true"
       run_operator_artifacts="true"
       run_operator_pki="true"
@@ -269,6 +276,9 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --openbao)
       run_openbao="true"
+      ;;
+    --operator-secret-sync-ca-bundle)
+      run_operator_secret_sync_ca_bundle="true"
       ;;
     --operator-secret-sync)
       run_operator_secret_sync="true"
@@ -306,7 +316,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
   usage >&2
   exit 1
 fi
@@ -317,7 +327,7 @@ if [[ "${run_openbao}" = "true" ]]; then
   phase_openbao_global
 fi
 
-if [[ "${run_operator_secret_sync}" = "true" ]]; then
+if [[ "${run_operator_secret_sync}" = "true" || "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
   phase_operator_secret_sync
 fi
 

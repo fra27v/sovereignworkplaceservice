@@ -4,6 +4,18 @@ This directory contains the first one-shot Kubernetes Job for projecting operato
 
 OpenBao KV is the source of truth. Kubernetes Secrets are runtime projections. Local `.env` files are bootstrap, import, and recovery material only.
 
+## OpenBao CA Bundle Projection
+
+Before the operator-secret-sync Job can verify OpenBao TLS, the public Operator CA bundle must be available. The `scripts/install-openbao-ca-bundle-configmap.sh` script projects the public Operator CA bundle from `OPERATOR_PKI_PUBLIC_DIR/operator-ca-bundle.pem` into the `operator-secret-sync` namespace as a ConfigMap with key `ca.crt`.
+
+This is public trust material only; it does not contain secrets. The ConfigMap is created with `kubectl apply` and is idempotent. The projection is a separate phase from operator-vault TLS rotation because:
+
+- The CA bundle is needed to verify OpenBao TLS during secret sync
+- The CA bundle only changes when the Operator CA rotates, not on every leaf certificate rotation
+- The projection can run at any time and should be included in `--all` bootstrap
+
+The verification script `scripts/verify-openbao-ca-bundle-configmap.sh` confirms that the ConfigMap exists and matches the source file's SHA256 checksum.
+
 ## Why A Job
 
 The sync runs in Kubernetes so the workload can authenticate to OpenBao with Kubernetes auth and its mounted ServiceAccount token. This avoids storing static OpenBao tokens in Kubernetes Secrets.
