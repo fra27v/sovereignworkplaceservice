@@ -9,6 +9,8 @@ summary_ok=()
 summary_warn=()
 summary_fail=()
 
+declare -A verify_status=()
+
 usage() {
   cat <<EOF
 Usage: $0 [--env-file <path>] [--help]
@@ -48,11 +50,13 @@ run_verify_script() {
 
   if [[ ! -f "${path}" ]]; then
     warn "${label} verification script is missing: ${path}"
+    verify_status["${label}"]="warn"
     return 0
   fi
 
   if [[ ! -x "${path}" ]]; then
     warn "${label} verification script is not executable: ${path}"
+    verify_status["${label}"]="warn"
     return 0
   fi
 
@@ -61,11 +65,14 @@ run_verify_script() {
   echo "+ ${path}${args[*]:+ ${args[*]}}"
   if "${path}" "${args[@]}"; then
     ok "${label} verification script passed"
+    verify_status["${label}"]="pass"
   else
     if [[ "${failure_mode}" = "warn" ]]; then
       warn "${label} verification script did not pass; treat as TODO until the corresponding explicit phase is complete"
+      verify_status["${label}"]="warn"
     else
       fail_component "${label} verification script failed"
+      verify_status["${label}"]="fail"
     fi
   fi
 }
@@ -193,7 +200,9 @@ check_openbao_pod() {
 print_todos() {
   echo
   echo "== TODO =="
-  warn "operator-vault TLS rotation is explicit and may not have been run yet"
+  if [[ "${verify_status["operator-vault TLS runtime"]:-unknown}" != "pass" ]]; then
+    warn "operator-vault TLS rotation is explicit and may not have been run yet"
+  fi
   warn "operator-vault public endpoint is not implemented yet"
 }
 
@@ -246,7 +255,7 @@ done
 
 run_verify_script "Traefik" "${env_dir}/traefik/scripts/verify-traefik-acme-dns01-ovh.sh"
 run_verify_script "OpenBao CA bundle projection" "${env_dir}/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh" "warn" --env-file "${env_file}"
-run_verify_script "operator-secret-sync" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh"
+run_verify_script "operator-secret-sync" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh" "warn"
 run_verify_script "operator-artifacts" "${env_dir}/operator-artifacts/scripts/verify-operator-artifacts.sh"
 run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-openbao-global-audit.sh"
 run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh"

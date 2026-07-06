@@ -44,6 +44,10 @@ Safety:
   - It does not print secret values.
   - It does not initialize OpenBao directly.
   - --operator-secret-sync-ca-bundle projects public CA trust material only.
+  - --all currently includes only supported phases and does not enable the full
+    operator-secret-sync Job/runner-image phase.
+  - --operator-secret-sync is explicit and must be used when the full phase is
+    ready.
   - --operator-vault-tls is intentionally explicit because it rotates runtime
     TLS and restarts only the configured OpenBao pod.
 EOF
@@ -168,9 +172,12 @@ phase_operator_secret_sync() {
   if [[ "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
     run_if_executable "OpenBao CA bundle projection" "${sync_scripts}/install-openbao-ca-bundle-configmap.sh" "false" --env-file "${env_file}"
   fi
-  run_if_executable "operator-plane bootstrap secret import" "${openbao_scripts}/import-operator-plane-bootstrap-secrets.sh" "false"
-  run_if_executable "OpenBao Kubernetes auth for secret sync" "${openbao_scripts}/configure-openbao-kubernetes-auth-for-secret-sync.sh" "false"
-  run_if_executable "operator-secret-sync install" "${sync_scripts}/install-operator-secret-sync.sh" "false"
+
+  if [[ "${run_operator_secret_sync}" = "true" ]]; then
+    run_if_executable "operator-plane bootstrap secret import" "${openbao_scripts}/import-operator-plane-bootstrap-secrets.sh" "false"
+    run_if_executable "OpenBao Kubernetes auth for secret sync" "${openbao_scripts}/configure-openbao-kubernetes-auth-for-secret-sync.sh" "false"
+    run_if_executable "operator-secret-sync install" "${sync_scripts}/install-operator-secret-sync.sh" "false"
+  fi
 
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "operator-secret-sync phase completed"
@@ -267,7 +274,7 @@ while [[ "$#" -gt 0 ]]; do
       run_traefik="true"
       run_openbao="true"
       run_operator_secret_sync_ca_bundle="true"
-      run_operator_secret_sync="true"
+      run_operator_secret_sync="false"
       run_operator_artifacts="true"
       run_operator_pki="true"
       ;;

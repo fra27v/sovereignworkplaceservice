@@ -57,8 +57,10 @@ get_configmap_sha256() {
   local ns="$1"
   local cm="$2"
   local key="$3"
+  local template
 
-  kubectl -n "${ns}" get configmap "${cm}" -o jsonpath="{.data.${key}}" | sha256sum | cut -d' ' -f1
+  template="{{ index .data \"${key}\" }}"
+  kubectl -n "${ns}" get configmap "${cm}" -o "go-template=${template}" | sha256sum | cut -d' ' -f1
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -76,6 +78,7 @@ while [[ "$#" -gt 0 ]]; do
       fail "Unknown argument: $1"
       ;;
   esac
+  shift
 done
 
 require_command bash
@@ -108,10 +111,13 @@ fi
 
 ok "ConfigMap exists"
 
-configmap_content="$(kubectl -n "${namespace}" get configmap "${configmap_name}" -o jsonpath="{.data.${configmap_key}}" 2>/dev/null || echo "")"
+configmap_content="$(kubectl -n "${namespace}" get configmap "${configmap_name}" -o "go-template={{ index .data \"${configmap_key}\" }}" 2>/dev/null || echo "")"
 [[ -n "${configmap_content}" ]] || fail "ConfigMap key ${configmap_key} is empty or missing"
 
 ok "ConfigMap key is non-empty"
+
+[[ -f "${ca_bundle_path}" ]] || fail "Source CA bundle missing: ${ca_bundle_path}"
+[[ -s "${ca_bundle_path}" ]] || fail "Source CA bundle is empty: ${ca_bundle_path}"
 
 source_sha256="$(sha256sum "${ca_bundle_path}" | cut -d' ' -f1)"
 configmap_sha256="$(get_configmap_sha256 "${namespace}" "${configmap_name}" "${configmap_key}")"
