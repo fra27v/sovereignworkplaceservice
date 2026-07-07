@@ -162,6 +162,20 @@ Run read-only verification:
 - Do not introduce component-specific real env files.
 - Do not store static OpenBao tokens in Kubernetes Secrets.
 
+## Executable Scripts in Git
+
+- Operational scripts included in this repository must be executable via Git mode,
+  not manually `chmod`'d on the VPS. Set executable mode in the repository so
+  the permissions are preserved when cloning or pulling to the target host:
+
+```bash
+git update-index --chmod=+x k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-openbao-ca-bundle-configmap.sh
+git update-index --chmod=+x k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh
+```
+
+This ensures the bootstrap and verify orchestrators can run target-ready
+phases without false WARN statuses due to missing executable bits.
+
 ## Secret Authority
 
 Global OpenBao KV is the operator-plane source of truth for secrets and sensitive runtime configuration.

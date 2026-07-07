@@ -170,7 +170,7 @@ phase_operator_secret_sync() {
   local fail_count_before="${#summary_fail[@]}"
 
   if [[ "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
-    run_if_executable "OpenBao CA bundle projection" "${sync_scripts}/install-openbao-ca-bundle-configmap.sh" "false" --env-file "${env_file}"
+    run_if_executable "OpenBao CA bundle projection" "${sync_scripts}/install-openbao-ca-bundle-configmap.sh" "true" --env-file "${env_file}"
   fi
 
   if [[ "${run_operator_secret_sync}" = "true" ]]; then

@@ -49,15 +49,21 @@ run_verify_script() {
   local args=("$@")
 
   if [[ ! -f "${path}" ]]; then
-    warn "${label} verification script is missing: ${path}"
-    verify_status["${label}"]="warn"
-    return 0
+      if [[ "${failure_mode}" = "warn" ]]; then
+        warn "${label} verification script is missing: ${path}"
+      else
+        fail_component "${label} verification script is missing: ${path}"
+      fi
+      return 0
   fi
 
   if [[ ! -x "${path}" ]]; then
-    warn "${label} verification script is not executable: ${path}"
-    verify_status["${label}"]="warn"
-    return 0
+      if [[ "${failure_mode}" = "warn" ]]; then
+        warn "${label} verification script is not executable: ${path}"
+      else
+        fail_component "${label} verification script is not executable: ${path}"
+      fi
+      return 0
   fi
 
   echo
@@ -254,7 +260,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 run_verify_script "Traefik" "${env_dir}/traefik/scripts/verify-traefik-acme-dns01-ovh.sh"
-run_verify_script "OpenBao CA bundle projection" "${env_dir}/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh" "warn" --env-file "${env_file}"
+run_verify_script "OpenBao CA bundle projection" "${env_dir}/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh" --env-file "${env_file}"
 run_verify_script "operator-secret-sync" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh" "warn"
 run_verify_script "operator-artifacts" "${env_dir}/operator-artifacts/scripts/verify-operator-artifacts.sh"
 run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-openbao-global-audit.sh"
