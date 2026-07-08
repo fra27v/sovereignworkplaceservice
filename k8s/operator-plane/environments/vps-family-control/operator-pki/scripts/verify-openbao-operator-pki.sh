@@ -57,6 +57,42 @@ require_command() {
   command -v "${name}" >/dev/null 2>&1 || fail "Missing required command: ${name}"
 }
 
+validate_public_readable_file() {
+  local label="$1"
+  local path="$2"
+  local dir current component
+  local -a path_components
+
+  dir="$(dirname -- "${path}")"
+  current="/"
+  IFS='/' read -r -a path_components <<< "${dir#/}"
+  for component in "${path_components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current="${current%/}/${component}"
+    if [[ ! -e "${current}" ]]; then
+      fail "${label} parent path is missing: ${current}"
+    fi
+    if [[ ! -d "${current}" ]]; then
+      fail "${label} parent path is not a directory: ${current}"
+    fi
+    if [[ ! -x "${current}" ]]; then
+      fail "${label} parent path is not traversable: ${current} (permission denied)"
+    fi
+  done
+
+  if [[ ! -e "${path}" ]]; then
+    fail "${label} missing: ${path}"
+  fi
+
+  if [[ ! -r "${path}" ]]; then
+    fail "${label} is not readable: ${path} (permission denied)"
+  fi
+
+  if [[ ! -s "${path}" ]]; then
+    fail "${label} is empty: ${path}"
+  fi
+}
+
 token_exec() {
   local token="$1"
   shift
@@ -124,27 +160,11 @@ fi
 
 ca_bundle_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem"
 ca_checksum_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem.sha256"
-if [[ ! -e "${ca_bundle_path}" ]]; then
-  fail "Public CA bundle missing: ${ca_bundle_path}"
-fi
-
-if [[ ! -r "${ca_bundle_path}" ]]; then
-  fail "Public CA bundle is not readable: ${ca_bundle_path} (permission denied)"
-fi
-
-if [[ ! -s "${ca_bundle_path}" ]]; then
-  fail "Public CA bundle is empty: ${ca_bundle_path}"
-fi
+validate_public_readable_file "Public CA bundle" "${ca_bundle_path}"
 
 ok "Public CA bundle exists"
 
-if [[ ! -e "${ca_checksum_path}" ]]; then
-  fail "Public CA bundle checksum missing: ${ca_checksum_path}"
-fi
-
-if [[ ! -r "${ca_checksum_path}" ]]; then
-  fail "Public CA bundle checksum is not readable: ${ca_checksum_path} (permission denied)"
-fi
+validate_public_readable_file "Public CA bundle checksum" "${ca_checksum_path}"
 
 (
   cd "${OPERATOR_PKI_PUBLIC_DIR}"

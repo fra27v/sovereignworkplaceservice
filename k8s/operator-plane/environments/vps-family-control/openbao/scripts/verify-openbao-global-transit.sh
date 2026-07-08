@@ -134,23 +134,19 @@ else
 fi
 
 set +e
-key_read_output="$(token_exec "${root_token}" bao read -format=json "${transit_mount}/keys/${transit_key}" 2>&1)"
+token_exec "${root_token}" bao read -format=json "${transit_mount}/keys/${transit_key}" >/dev/null 2>&1
 key_read_exit_code="$?"
 set -e
 
-if [[ "${key_read_exit_code}" -eq 0 ]] && printf '%s\n' "${key_read_output}" | jq -e '.data || empty' >/dev/null 2>&1; then
+if [[ "${key_read_exit_code}" -eq 0 ]]; then
   ok "Transit key exists: ${transit_key}"
 else
-  if [[ "${key_read_exit_code}" -ne 0 ]]; then
-    echo "ERROR: could not read transit key." >&2
-    echo "Command purpose: read transit key for verification" >&2
-    echo "Transit mount: ${transit_mount}/" >&2
-    echo "Transit key: ${transit_key}" >&2
-    echo "Exit code: ${key_read_exit_code}" >&2
-    fail "Transit key read failed for ${transit_key}"
-  fi
-
-  # If the read succeeded but returned no data, the key is missing
+  echo "ERROR: could not verify transit key existence." >&2
+  echo "Command purpose: read transit key for verification" >&2
+  echo "Transit mount: ${transit_mount}/" >&2
+  echo "Transit key: ${transit_key}" >&2
+  echo "Exit code: ${key_read_exit_code}" >&2
+  echo "Raw OpenBao output was suppressed to avoid printing token, key, ciphertext, or plaintext material." >&2
   fail "Transit key is missing: ${transit_key}"
 fi
 

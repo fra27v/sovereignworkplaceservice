@@ -111,6 +111,7 @@ token_exists=false
 if [[ -e "${token_file}" ]]; then
   token_exists=true
 fi
+token_written=false
 
 root_token="$(jq -r '.root_token // empty' "${init_file}")"
 [[ -n "${root_token}" ]] || fail "Could not read root token from init file."
@@ -206,6 +207,7 @@ else
 
     tenant_token="$(jq -r '.auth.client_token // empty' "${token_file}")"
     [[ -n "${tenant_token}" ]] || fail "Could not read tenant token from token file."
+    token_written=true
   else
     echo "DRY-RUN: would create tenant token JSON at ${token_file} (not written in dry-run)"
   fi
@@ -213,7 +215,6 @@ fi
 
 echo "Running transit encrypt/decrypt smoke test without printing token or ciphertext."
 if [[ "${dry_run}" != "true" ]]; then
-  echo "Running transit encrypt/decrypt smoke test without printing token or ciphertext."
   smoke_plaintext="family-infra-01-autounseal-smoke-test"
   smoke_plaintext_b64="$(printf '%s' "${smoke_plaintext}" | base64 | tr -d '\n')"
   encrypt_output="$(token_exec "${tenant_token}" bao write -format=json "${transit_mount}/encrypt/${transit_key}" "plaintext=${smoke_plaintext_b64}")"
@@ -231,6 +232,10 @@ else
 fi
 
 echo "Transit autounseal material for ${tenant_name} is configured."
-echo "Tenant token JSON was written to: ${token_file}"
+if [[ "${token_written}" = "true" ]]; then
+  echo "Tenant token JSON was written to: ${token_file}"
+elif [[ "${token_exists}" = "true" ]]; then
+  echo "Tenant token JSON already existed and was left unchanged: ${token_file}"
+fi
 echo "WARNING: the tenant token file contains secret material. Do not print it, paste it into chat, or commit it."
 echo "This script does not install Tenant OpenBao."

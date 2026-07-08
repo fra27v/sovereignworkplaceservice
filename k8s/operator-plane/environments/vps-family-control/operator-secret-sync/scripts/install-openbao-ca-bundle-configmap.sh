@@ -49,19 +49,39 @@ require_command() {
   command -v "${name}" >/dev/null 2>&1 || fail "Missing required command: ${name}"
 }
 
-validate_source_file() {
-  local path="$1"
+validate_readable_file() {
+  local label="$1"
+  local path="$2"
+  local dir current component
+  local -a path_components
+
+  dir="$(dirname -- "${path}")"
+  current="/"
+  IFS='/' read -r -a path_components <<< "${dir#/}"
+  for component in "${path_components[@]}"; do
+    [[ -n "${component}" ]] || continue
+    current="${current%/}/${component}"
+    if [[ ! -e "${current}" ]]; then
+      fail "${label} parent path is missing: ${current}"
+    fi
+    if [[ ! -d "${current}" ]]; then
+      fail "${label} parent path is not a directory: ${current}"
+    fi
+    if [[ ! -x "${current}" ]]; then
+      fail "${label} parent path is not traversable: ${current} (permission denied)"
+    fi
+  done
 
   if [[ ! -e "${path}" ]]; then
-    fail "Source file does not exist: ${path}"
+    fail "${label} does not exist: ${path}"
   fi
 
   if [[ ! -r "${path}" ]]; then
-    fail "Source file is not readable: ${path} (permission denied)"
+    fail "${label} is not readable: ${path} (permission denied)"
   fi
 
   if [[ ! -s "${path}" ]]; then
-    fail "Source file is empty: ${path}"
+    fail "${label} is empty: ${path}"
   fi
 }
 
@@ -69,9 +89,7 @@ validate_source_checksum() {
   local path="$1"
   local checksum_file="${path}.sha256"
 
-  if [[ ! -f "${checksum_file}" ]]; then
-    return 0
-  fi
+  validate_readable_file "Source checksum file" "${checksum_file}"
 
   local expected_checksum actual_checksum
 
@@ -123,7 +141,7 @@ load_operator_plane_env "${env_file}" "true" "${required_env_keys[@]}"
 
 ca_bundle_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem"
 
-validate_source_file "${ca_bundle_path}"
+validate_readable_file "Source file" "${ca_bundle_path}"
 validate_source_checksum "${ca_bundle_path}"
 
 source_bytes="$(get_file_bytes "${ca_bundle_path}")"
