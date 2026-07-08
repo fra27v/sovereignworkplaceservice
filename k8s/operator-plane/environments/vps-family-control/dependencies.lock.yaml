@@ -1,0 +1,116 @@
+schema_version: 1
+environment: vps-family-control
+last_reviewed: "2026-07-08"
+
+platform:
+  k3s:
+    status: live-managed
+    version: live-check-required
+    version_command: "k3s --version"
+    update_flow: k3s-managed
+    notes:
+      - k3s is installed and upgraded outside repository manifests.
+      - Record the live version after VPS verification; do not infer it from Kubernetes API compatibility.
+    managed_components:
+      - id: kubernetes-control-plane
+        manager: k3s
+      - id: containerd
+        manager: k3s
+      - id: kubectl
+        manager: k3s
+      - id: traefik
+        manager: k3s-helm-controller
+      - id: local-path-provisioner
+        manager: k3s
+      - id: coredns
+        manager: k3s
+      - id: metrics-server
+        manager: k3s
+
+helm_releases:
+  - id: openbao-global
+    release: openbao-global
+    namespace: openbao-operator
+    chart: openbao/openbao
+    chart_version: "0.28.4"
+    app_version: "v2.5.5"
+    update_flow: helm-managed
+    source_file: k8s/operator-plane/environments/vps-family-control/openbao/openbao-global.versions.env
+
+runtime_images:
+  - id: operator-artifacts-nginx
+    component: operator-artifacts
+    source_file: k8s/operator-plane/environments/vps-family-control/operator-artifacts/manifests/operator-artifacts.yaml.tpl
+    image: nginxinc/nginx-unprivileged:stable-alpine
+    digest: null
+    status: needs-pinning
+    update_flow: repository-manifest
+    notes:
+      - Existing runtime image uses a floating tag and must be replaced by a pinned tag or digest in a future update phase.
+
+  - id: operator-secret-sync-runner-candidate
+    component: operator-secret-sync
+    source_file: k8s/operator-plane/environments/vps-family-control/operator-secret-sync/job.yaml
+    image: docker.io/alpine/k8s:1.35.4
+    digest: null
+    status: candidate
+    update_flow: repository-manifest
+    notes:
+      - Candidate standard runner image only; the sync Job is not run until the runner is selected and pinned policy is accepted.
+
+  - id: openbao-global-app
+    component: openbao-global
+    source_file: k8s/operator-plane/environments/vps-family-control/openbao/openbao-global.versions.env
+    image: openbao/openbao:v2.5.5
+    digest: null
+    status: helm-app-version
+    update_flow: helm-managed
+    notes:
+      - OpenBao image is chart/app-version managed through the Helm release lock above.
+
+host_tools:
+  - name: bash
+    source: host
+    required_by: shell scripts
+  - name: kubectl
+    source: k3s
+    required_by: Kubernetes operations
+  - name: helm
+    source: host
+    required_by: OpenBao Helm rendering/install
+  - name: jq
+    source: apt
+    required_by: JSON verification and OpenBao scripts
+  - name: curl
+    source: apt
+    required_by: operator-secret-sync runtime script
+  - name: openssl
+    source: apt
+    required_by: TLS helpers and BasicAuth hash generation
+  - name: htpasswd
+    source: apache2-utils
+    required_by: operator-artifacts bootstrap tooling
+  - name: git
+    source: apt
+    required_by: repository operations
+  - name: sha256sum
+    source: coreutils
+    required_by: checksum verification
+  - name: awk
+    source: base-os
+    required_by: script parsing
+  - name: grep
+    source: base-os
+    required_by: script verification
+  - name: sed
+    source: base-os
+    required_by: script rendering
+  - name: base64
+    source: coreutils
+    required_by: transit smoke-test helpers
+  - name: mktemp
+    source: coreutils
+    required_by: temporary file handling
+  - name: stat
+    source: coreutils
+    required_by: file metadata checks

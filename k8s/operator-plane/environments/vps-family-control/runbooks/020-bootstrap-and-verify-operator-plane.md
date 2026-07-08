@@ -43,6 +43,13 @@ values across variables: derive public service hostnames from the central base
 domain and derive internal DNS names from service, namespace, and cluster DNS
 suffix values.
 
+`dependencies.lock.yaml` is the machine-readable source of truth for
+environment runtime dependency intent. It records k3s-managed components,
+Helm-managed releases, repository-managed runtime images, runner image
+candidates, and host tooling. Changing the lock plus running the relevant
+future update phase updates components; the lock itself does not mutate the
+cluster.
+
 Some scripts run with `sudo` for host filesystem writes. On Linux, `sudo`
 changes `$HOME` to `/root`, but Global OpenBao init material remains under the
 operator user's bootstrap directory unless explicitly configured otherwise. Set
@@ -64,6 +71,13 @@ The bootstrap entrypoint currently supports:
 - explicit `operator-vault` runtime TLS issuance and install with `--operator-vault-tls`
 
 Global OpenBao install, initialization, transit setup, and audit setup remain delegated to their explicit component runbooks until stable environment-level entrypoints are validated.
+
+k3s-managed dependencies are updated through the k3s platform flow.
+Helm-managed dependencies, including Global OpenBao, are updated through their
+Helm release flow. Repository-managed images, including operator-artifacts and
+the future operator-secret-sync runner, are updated by changing the dependency
+lock and the consuming manifest together. Custom images require an explicit ADR
+before introduction.
 
 Note: the Global OpenBao transit configure entrypoint is idempotent and will
 reconcile missing transit keys or policy state without overwriting an existing
@@ -225,6 +239,10 @@ The foundation phase does not choose, validate, pull, or run the runner image.
 The future Job/run phase will choose a pinned standard runner image and run the
 one-shot Job as an explicit step.
 
+The candidate `docker.io/alpine/k8s:1.35.4` is tracked in
+`dependencies.lock.yaml`. It remains a candidate until the future Job/run phase
+selects and applies a pinned runner image.
+
 Validate a candidate runner image with:
 
 ```bash
@@ -233,6 +251,12 @@ Validate a candidate runner image with:
 ```
 
 The runner image must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `openssl passwd -apr1` support, and CA certificates. Future vulnerability management means updating the pinned image reference and rerunning the contract check; changing sync logic updates the script and generated ConfigMap, not the image.
+
+Verify the dependency lock without touching live state:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/scripts/verify-dependencies-lock.sh
+```
 
 The bootstrap env parser is strict and does not execute shell from `operator-plane.bootstrap-secrets.env`.
 

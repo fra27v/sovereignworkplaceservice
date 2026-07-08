@@ -261,6 +261,7 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
+run_verify_script "Dependency lock" "${env_dir}/scripts/verify-dependencies-lock.sh"
 run_verify_script "Traefik" "${env_dir}/traefik/scripts/verify-traefik-acme-dns01-ovh.sh"
 run_verify_script "OpenBao CA bundle projection" "${env_dir}/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh" --env-file "${env_file}"
 run_verify_script "operator-secret-sync foundation" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync-foundation.sh" --env-file "${env_file}"

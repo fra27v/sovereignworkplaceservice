@@ -86,9 +86,22 @@ For `operator-artifacts`, the script derives the `users` htpasswd line inside th
 
 No custom image is created at this stage and no image registry is introduced at this stage.
 
-The Job must use a pinned standard runner image that satisfies `image-contract.md`. The `latest` tag is forbidden, and digest pinning is preferred once the selected image is finalized.
+The environment dependency lock is the source of truth for runtime image
+intent:
 
-The runner image is not selected yet. `job.yaml` intentionally uses an invalid placeholder image reference, and the install script fails before applying the Job until a valid pinned standard runner image is selected.
+```text
+../dependencies.lock.yaml
+```
+
+The Job must use a pinned standard runner image that satisfies
+`image-contract.md`. The `latest` tag is forbidden, and digest pinning is
+preferred once the selected image is finalized.
+
+The current runner image candidate is recorded in the dependency lock as
+`docker.io/alpine/k8s:1.35.4`. It is a candidate only; `job.yaml` intentionally
+uses an invalid placeholder image reference, and the install script fails before
+applying the Job until a valid pinned standard runner image is selected and the
+manifest is updated through a future explicit phase.
 
 That image must provide:
 
@@ -122,6 +135,12 @@ Use these commands to validate a candidate image reference before replacing the 
 The dry run does not pull or run anything. The real check uses a local Docker-compatible runtime and does not require secrets.
 
 Future vulnerability management means selecting an updated pinned image reference, rerunning the contract check, updating `job.yaml`, and reapplying the Job through the normal install flow. It does not require changing the sync script unless the tool contract changes.
+
+Changing runtime images starts by changing `../dependencies.lock.yaml`.
+Applying that change to Kubernetes is a separate future update phase. k3s
+managed dependencies and Helm-managed dependencies have their own update flows;
+the operator-secret-sync runner image is repository-managed through the Job
+manifest. Introducing a custom runner image requires an explicit ADR.
 
 ## Bootstrap Env Parser
 
