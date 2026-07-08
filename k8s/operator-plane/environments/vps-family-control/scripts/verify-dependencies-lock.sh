@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/.." && pwd)"
-lock_file="${env_dir}/dependencies.lock.yaml"
+lock_file="${env_dir}/dependencies.lock.json"
 
 summary_ok=0
 summary_warn=0
@@ -14,13 +14,13 @@ usage() {
 Usage:
   verify-dependencies-lock.sh [--lock-file <path>] [--help]
 
-Static verification for vps-family-control dependencies.lock.yaml.
+Static jq-based verification for vps-family-control dependencies.lock.json.
 
-The verifier does not mutate Kubernetes state, pull images, run Jobs, or read
-secrets.
+The verifier does not mutate Kubernetes state, pull images, run Jobs or Pods,
+or read secrets.
 
 Options:
-  --lock-file <path>  Dependency lock file to verify.
+  --lock-file <path>  Dependency lock JSON file to verify.
   --help              Show this help.
 USAGE
 }
@@ -48,17 +48,15 @@ require_command() {
   }
 }
 
-is_floating_tag() {
-  local tag="$1"
+jq_bool_is_true() {
+  local path="$1"
+  jq -e "${path} == true" "${lock_file}" >/dev/null
+}
 
-  case "${tag}" in
-    latest|stable|stable-alpine|edge|main|master|dev|nightly)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+jq_type_is() {
+  local path="$1"
+  local expected="$2"
+  jq -e "(${path} | type) == \"${expected}\"" "${lock_file}" >/dev/null
 }
 
 image_tag() {
@@ -74,7 +72,56 @@ image_tag() {
   fi
 }
 
-check_digest() {
+is_floating_tag() {
+  local tag="$1"
+
+  case "${tag}" in
+    stable|stable-alpine|edge|main|master|nightly|rolling)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+validate_required_fields() {
+  local field
+
+  for field in schemaVersion environment lastReviewed policy platform managedComponents helmReleases runtimeImages hostTools; do
+    if jq -e --arg field "${field}" 'has($field)' "${lock_file}" >/dev/null; then
+      ok "Top-level field exists: ${field}"
+    else
+      fail "Missing top-level field: ${field}"
+    fi
+  done
+}
+
+validate_array_fields() {
+  local field
+
+  for field in managedComponents helmReleases runtimeImages hostTools; do
+    if jq_type_is ".${field}" "array"; then
+      ok "Field is an array: ${field}"
+    else
+      fail "Field must be an array: ${field}"
+    fi
+  done
+}
+
+validate_policy() {
+  local field
+
+  for field in rejectLatest noRuntimePackageInstall updatesRequireGitCommit vpsRunsOnlyGitState; do
+    if jq_bool_is_true ".policy.${field}"; then
+      ok "Policy ${field} is true"
+    else
+      fail "Policy ${field} must be true"
+    fi
+  done
+}
+
+validate_digest() {
   local id="$1"
   local digest="$2"
 
@@ -89,105 +136,99 @@ check_digest() {
   fi
 }
 
-check_image_record() {
-  local id="$1"
-  local image="$2"
-  local status="$3"
-  local digest="$4"
-  local tag
+validate_runtime_image() {
+  local json="$1"
+  local id image status update_flow digest tag
 
-  if [[ -z "${id}" || -z "${image}" ]]; then
-    fail "Malformed runtime image record with missing id or image"
+  id="$(jq -r '.id // ""' <<< "${json}")"
+  image="$(jq -r '.image // ""' <<< "${json}")"
+  status="$(jq -r '.status // ""' <<< "${json}")"
+  update_flow="$(jq -r '.updateFlow // ""' <<< "${json}")"
+  digest="$(jq -r '.digest // "null"' <<< "${json}")"
+
+  if [[ -z "${id}" ]]; then
+    fail "Runtime image entry is missing id"
+    return 0
+  fi
+
+  if [[ -z "${image}" || -z "${status}" || -z "${update_flow}" ]]; then
+    fail "Runtime image ${id} must include image, status, and updateFlow"
     return 0
   fi
 
   tag="$(image_tag "${image}")"
+
   if [[ "${tag}" = "latest" ]]; then
-    fail "Image ${id} uses forbidden :latest tag: ${image}"
+    fail "Runtime image ${id} uses forbidden :latest tag: ${image}"
   elif [[ -n "${tag}" ]] && is_floating_tag "${tag}"; then
     if [[ "${status}" = "needs-pinning" ]]; then
-      warn "Image ${id} uses floating tag and is marked needs-pinning: ${image}"
+      warn "Runtime image ${id} uses floating tag and is marked needs-pinning: ${image}"
     else
-      fail "Image ${id} uses floating tag without needs-pinning status: ${image}"
+      fail "Runtime image ${id} uses floating tag without needs-pinning status: ${image}"
     fi
-  elif [[ "${status}" = "candidate" && ( -z "${digest}" || "${digest}" = "null" ) ]]; then
-    warn "Candidate image ${id} has no digest yet: ${image}"
   elif [[ -z "${tag}" && "${image}" != *@sha256:* ]]; then
-    fail "Image ${id} has neither a tag nor digest: ${image}"
+    if [[ "${update_flow}" = "helm-managed" && "${status}" = "helm-app-version" ]]; then
+      ok "Runtime image ${id} is helm app-version managed without explicit image digest"
+    else
+      fail "Runtime image ${id} has no explicit tag or digest: ${image}"
+    fi
+  elif [[ "${status}" = "helm-app-version" && "${update_flow}" = "helm-managed" && ( -z "${digest}" || "${digest}" = "null" ) ]]; then
+    ok "Runtime image ${id} is helm app-version managed without digest: ${image}"
+  elif [[ "${status}" = "candidate" && ( -z "${digest}" || "${digest}" = "null" ) ]]; then
+    warn "Candidate runtime image ${id} has no digest yet: ${image}"
   else
-    ok "Image ${id} is pinned or acceptable: ${image}"
+    ok "Runtime image ${id} is pinned or acceptable: ${image}"
   fi
 
-  check_digest "${id}" "${digest}"
+  validate_digest "${id}" "${digest}"
 }
 
-verify_runtime_images() {
-  local in_images="false"
-  local id="" image="" status="" digest=""
-  local line trimmed value
+validate_runtime_images() {
+  local count index image_json
 
-  flush_record() {
-    if [[ -n "${id}${image}${status}${digest}" ]]; then
-      check_image_record "${id}" "${image}" "${status}" "${digest}"
-    fi
-    id=""
-    image=""
-    status=""
-    digest=""
-  }
+  count="$(jq '.runtimeImages | length' "${lock_file}")"
+  if [[ "${count}" -eq 0 ]]; then
+    fail "runtimeImages must not be empty"
+    return 0
+  fi
 
-  while IFS= read -r line || [[ -n "${line}" ]]; do
-    trimmed="${line#"${line%%[![:space:]]*}"}"
-
-    if [[ "${trimmed}" = "runtime_images:" ]]; then
-      in_images="true"
-      continue
-    fi
-
-    if [[ "${in_images}" = "true" && "${line}" =~ ^[^[:space:]] && "${trimmed}" != "runtime_images:" ]]; then
-      flush_record
-      in_images="false"
-    fi
-
-    [[ "${in_images}" = "true" ]] || continue
-
-    if [[ "${trimmed}" == "- id:"* ]]; then
-      flush_record
-      value="${trimmed#- id:}"
-      id="${value#"${value%%[![:space:]]*}"}"
-      id="${id%\"}"
-      id="${id#\"}"
-    elif [[ "${trimmed}" == "image:"* ]]; then
-      value="${trimmed#image:}"
-      image="${value#"${value%%[![:space:]]*}"}"
-      image="${image%\"}"
-      image="${image#\"}"
-    elif [[ "${trimmed}" == "status:"* ]]; then
-      value="${trimmed#status:}"
-      status="${value#"${value%%[![:space:]]*}"}"
-      status="${status%\"}"
-      status="${status#\"}"
-    elif [[ "${trimmed}" == "digest:"* ]]; then
-      value="${trimmed#digest:}"
-      digest="${value#"${value%%[![:space:]]*}"}"
-      digest="${digest%\"}"
-      digest="${digest#\"}"
-    fi
-  done < "${lock_file}"
-
-  flush_record
+  for ((index = 0; index < count; index += 1)); do
+    image_json="$(jq -c ".runtimeImages[${index}]" "${lock_file}")"
+    validate_runtime_image "${image_json}"
+  done
 }
 
-verify_required_sections() {
-  local section
+validate_host_tools() {
+  local count index tool_name required
 
-  for section in schema_version environment platform helm_releases runtime_images host_tools; do
-    if grep -Eq "^${section}:" "${lock_file}"; then
-      ok "Lock contains section: ${section}"
+  count="$(jq '.hostTools | length' "${lock_file}")"
+  if [[ "${count}" -eq 0 ]]; then
+    fail "hostTools must not be empty"
+    return 0
+  fi
+
+  for ((index = 0; index < count; index += 1)); do
+    tool_name="$(jq -r ".hostTools[${index}].name // \"\"" "${lock_file}")"
+    required="$(jq -r ".hostTools[${index}].required // false" "${lock_file}")"
+    if [[ "${required}" = "true" && -n "${tool_name}" ]]; then
+      ok "Required host tool is declared: ${tool_name}"
+    elif [[ "${required}" = "true" ]]; then
+      fail "Required host tool entry at index ${index} has empty name"
     else
-      fail "Lock is missing required section: ${section}"
+      warn "Host tool entry is not marked required: ${tool_name:-index ${index}}"
     fi
   done
+}
+
+validate_helm_releases() {
+  local count
+
+  count="$(jq '.helmReleases | length' "${lock_file}")"
+  if [[ "${count}" -gt 0 ]]; then
+    ok "Helm release entries declared: ${count}"
+  else
+    fail "helmReleases must not be empty"
+  fi
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -212,14 +253,26 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-require_command grep
-[[ -f "${lock_file}" ]] || {
+require_command jq
+
+if [[ ! -f "${lock_file}" ]]; then
   echo "FAIL: Missing dependency lock file: ${lock_file}" >&2
   exit 1
-}
+fi
 
-verify_required_sections
-verify_runtime_images
+if jq . "${lock_file}" >/dev/null; then
+  ok "Dependency lock is valid JSON: ${lock_file}"
+else
+  echo "FAIL: Dependency lock is not valid JSON: ${lock_file}" >&2
+  exit 1
+fi
+
+validate_required_fields
+validate_array_fields
+validate_policy
+validate_helm_releases
+validate_runtime_images
+validate_host_tools
 
 echo
 echo "Dependency lock verification summary:"
