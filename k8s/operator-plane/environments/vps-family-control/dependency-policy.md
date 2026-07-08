@@ -1,6 +1,6 @@
 # Dependency Policy
 
-`dependencies.lock.yaml` is the machine-readable source of truth for
+`dependencies.lock.json` is the authoritative machine-readable source of truth for
 `vps-family-control` runtime dependency intent.
 
 The lock records:
@@ -10,6 +10,10 @@ The lock records:
 - repository-managed runtime images
 - candidate runtime images that are not yet active
 - host tools required by scripts
+
+The previous YAML lock format is not active. Dependency validation uses `jq`
+against JSON. Do not add handwritten YAML parsing in Bash and do not introduce
+`yq` for this lock.
 
 ## Pinning Rules
 
@@ -24,6 +28,8 @@ Candidate images without a digest are allowed only when marked `candidate`.
 They produce verifier warnings, not failures. Selecting and running a candidate
 requires a separate explicit phase.
 
+Real Job execution requires digest pinning.
+
 Do not invent digests. Add a digest only after it is obtained from a trusted
 registry or release source during an update phase.
 
@@ -35,12 +41,15 @@ pretend to manage k3s binaries or bundled components.
 
 Helm-managed dependencies are updated through the Helm release flow. For Global
 OpenBao, update `openbao/openbao` chart/app versions in
-`openbao/openbao-global.versions.env`, then update `dependencies.lock.yaml` in
+`openbao/openbao-global.versions.env`, then update `dependencies.lock.json` in
 the same change.
 
 Repository-managed images are updated by changing the lock plus the manifest or
 Job template that consumes the image. Future update phases apply those manifest
 changes to the cluster.
+
+Validate-then-enable-Job dependencies, such as the future operator-secret-sync
+runner image, must be validated before Job execution.
 
 Custom images require an explicit ADR before introduction. The ADR must explain
 why a pinned standard image is insufficient, where the image is built, how it is

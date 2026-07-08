@@ -43,12 +43,15 @@ values across variables: derive public service hostnames from the central base
 domain and derive internal DNS names from service, namespace, and cluster DNS
 suffix values.
 
-`dependencies.lock.yaml` is the machine-readable source of truth for
+`dependencies.lock.json` is the authoritative machine-readable source of truth for
 environment runtime dependency intent. It records k3s-managed components,
 Helm-managed releases, repository-managed runtime images, runner image
 candidates, and host tooling. Changing the lock plus running the relevant
 future update phase updates components; the lock itself does not mutate the
 cluster.
+
+The dependency lock is JSON and is validated with `jq`. Do not add manual YAML
+parsing for dependency inventory validation.
 
 Some scripts run with `sudo` for host filesystem writes. On Linux, `sudo`
 changes `$HOME` to `/root`, but Global OpenBao init material remains under the
@@ -240,7 +243,7 @@ The future Job/run phase will choose a pinned standard runner image and run the
 one-shot Job as an explicit step.
 
 The candidate `docker.io/alpine/k8s:1.35.4` is tracked in
-`dependencies.lock.yaml`. It remains a candidate until the future Job/run phase
+`dependencies.lock.json`. It remains a candidate until the future Job/run phase
 selects and applies a pinned runner image.
 
 Validate a candidate runner image with:

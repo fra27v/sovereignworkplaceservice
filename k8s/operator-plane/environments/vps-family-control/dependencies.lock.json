@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "environment": "vps-family-control",
+  "lastReviewed": "2026-07-08",
+  "policy": {
+    "rejectLatest": true,
+    "requireDigestForRuntimeJobs": true,
+    "preferDigestForLongRunningWorkloads": true,
+    "noRuntimePackageInstall": true,
+    "preferStandardImages": true,
+    "customImagesRequireAdr": true,
+    "updatesRequireGitCommit": true,
+    "vpsRunsOnlyGitState": true
+  },
+  "platform": {
+    "k3s": {
+      "version": "live-check-required",
+      "versionCommand": "k3s --version",
+      "updateFlow": "k3s-managed",
+      "note": "k3s-packaged components are upgraded through the k3s lifecycle unless explicitly externalized."
+    }
+  },
+  "managedComponents": [
+    {
+      "id": "kubernetes-control-plane",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "containerd",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "kubectl",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "traefik",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "local-path-provisioner",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "coredns",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "metrics-server",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    }
+  ],
+  "helmReleases": [
+    {
+      "id": "openbao-global",
+      "namespace": "openbao-operator",
+      "release": "openbao-global",
+      "chart": "openbao/openbao",
+      "chartVersion": "0.28.4",
+      "appVersion": "v2.5.5",
+      "imageStatus": "chart-managed",
+      "updateFlow": "helm-managed"
+    }
+  ],
+  "runtimeImages": [
+    {
+      "id": "operator-artifacts-nginx",
+      "workload": "operator-artifacts",
+      "namespace": "operator-artifacts",
+      "image": "nginxinc/nginx-unprivileged:stable-alpine",
+      "digest": null,
+      "status": "needs-pinning",
+      "updateFlow": "repository-manifest",
+      "reason": "Existing operator-artifacts runtime image; floating stable-alpine tag must be pinned in a later phase."
+    },
+    {
+      "id": "operator-secret-sync-runner-candidate",
+      "workload": "operator-secret-sync",
+      "namespace": "operator-secret-sync",
+      "image": "docker.io/alpine/k8s:1.35.4",
+      "digest": null,
+      "status": "candidate",
+      "updateFlow": "validate-then-enable-job",
+      "reason": "Standard Kubernetes toolbox candidate matching current cluster minor; digest required before real Job execution.",
+      "requiredTools": [
+        "bash",
+        "curl",
+        "jq",
+        "kubectl",
+        "openssl"
+      ]
+    },
+    {
+      "id": "openbao-global-app",
+      "workload": "openbao-global",
+      "namespace": "openbao-operator",
+      "image": "openbao/openbao:v2.5.5",
+      "digest": null,
+      "status": "helm-app-version",
+      "updateFlow": "helm-managed",
+      "reason": "Tracked as app version for the Helm release; actual image pinning depends on chart capabilities."
+    }
+  ],
+  "hostTools": [
+    {
+      "name": "bash",
+      "required": true,
+      "usedFor": "Shell script execution"
+    },
+    {
+      "name": "kubectl",
+      "required": true,
+      "usedFor": "Kubernetes operations"
+    },
+    {
+      "name": "helm",
+      "required": true,
+      "usedFor": "OpenBao Helm rendering and install"
+    },
+    {
+      "name": "jq",
+      "required": true,
+      "usedFor": "JSON validation and OpenBao script output parsing"
+    },
+    {
+      "name": "curl",
+      "required": true,
+      "usedFor": "operator-secret-sync runtime OpenBao API calls"
+    },
+    {
+      "name": "openssl",
+      "required": true,
+      "usedFor": "TLS helpers and BasicAuth hash generation"
+    },
+    {
+      "name": "htpasswd",
+      "required": true,
+      "usedFor": "operator-artifacts BasicAuth bootstrap tooling"
+    },
+    {
+      "name": "git",
+      "required": true,
+      "usedFor": "Repository operations"
+    },
+    {
+      "name": "sha256sum",
+      "required": true,
+      "usedFor": "Checksum verification"
+    },
+    {
+      "name": "awk",
+      "required": true,
+      "usedFor": "Script parsing"
+    },
+    {
+      "name": "grep",
+      "required": true,
+      "usedFor": "Script verification"
+    },
+    {
+      "name": "sed",
+      "required": true,
+      "usedFor": "Script rendering"
+    },
+    {
+      "name": "base64",
+      "required": true,
+      "usedFor": "Transit smoke-test helpers"
+    },
+    {
+      "name": "mktemp",
+      "required": true,
+      "usedFor": "Temporary file handling"
+    },
+    {
+      "name": "stat",
+      "required": true,
+      "usedFor": "File metadata checks"
+    }
+  ]
+}

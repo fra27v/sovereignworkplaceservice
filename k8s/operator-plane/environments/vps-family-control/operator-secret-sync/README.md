@@ -90,7 +90,7 @@ The environment dependency lock is the source of truth for runtime image
 intent:
 
 ```text
-../dependencies.lock.yaml
+../dependencies.lock.json
 ```
 
 The Job must use a pinned standard runner image that satisfies
@@ -136,11 +136,13 @@ The dry run does not pull or run anything. The real check uses a local Docker-co
 
 Future vulnerability management means selecting an updated pinned image reference, rerunning the contract check, updating `job.yaml`, and reapplying the Job through the normal install flow. It does not require changing the sync script unless the tool contract changes.
 
-Changing runtime images starts by changing `../dependencies.lock.yaml`.
+Changing runtime images starts by changing `../dependencies.lock.json`.
 Applying that change to Kubernetes is a separate future update phase. k3s
 managed dependencies and Helm-managed dependencies have their own update flows;
 the operator-secret-sync runner image is repository-managed through the Job
-manifest. Introducing a custom runner image requires an explicit ADR.
+manifest. The runner image uses the validate-then-enable-Job flow and requires
+validation plus digest pinning before real Job execution. Introducing a custom
+runner image requires an explicit ADR.
 
 ## Bootstrap Env Parser
 
