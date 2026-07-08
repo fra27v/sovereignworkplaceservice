@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 operator_secret_sync_dir="$(cd -- "${script_dir}/.." && pwd)"
-env_dir="$(cd -- "${operator_secret_sync_dir}/../.." && pwd)"
+env_dir="$(cd -- "${operator_secret_sync_dir}/.." && pwd)"
 env_file="${env_dir}/operator-plane.env"
 env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 
@@ -78,7 +78,6 @@ while [[ "$#" -gt 0 ]]; do
       fail "Unknown argument: $1"
       ;;
   esac
-  shift
 done
 
 require_command bash
