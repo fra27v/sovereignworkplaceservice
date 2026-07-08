@@ -42,8 +42,10 @@ run_verify_script() {
   local label="$1"
   local path="$2"
   shift 2
-  local failure_mode="${1:-fail}"
-  if [[ "$#" -gt 0 ]]; then
+
+  local failure_mode="fail"
+  if [[ "$#" -gt 0 && ( "$1" == "warn" || "$1" == "fail" ) ]]; then
+    failure_mode="$1"
     shift
   fi
   local args=("$@")
@@ -264,7 +266,7 @@ run_verify_script "OpenBao CA bundle projection" "${env_dir}/operator-secret-syn
 run_verify_script "operator-secret-sync" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh" "warn"
 run_verify_script "operator-artifacts" "${env_dir}/operator-artifacts/scripts/verify-operator-artifacts.sh"
 run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-openbao-global-audit.sh"
-run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh"
+run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh" --env-file "${env_file}"
 run_verify_script "Operator PKI" "${env_dir}/operator-pki/scripts/verify-openbao-operator-pki.sh" "warn" --env-file "${env_file}"
 run_verify_script "operator-vault TLS runtime" "${env_dir}/operator-pki/scripts/verify-operator-vault-tls-runtime.sh" "warn" --env-file "${env_file}"
 
