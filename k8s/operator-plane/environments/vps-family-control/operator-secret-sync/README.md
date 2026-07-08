@@ -16,6 +16,30 @@ This is public trust material only; it does not contain secrets. The ConfigMap i
 
 The verification script `scripts/verify-openbao-ca-bundle-configmap.sh` confirms that the ConfigMap exists and matches the source file's SHA256 checksum.
 
+## Foundation Phase
+
+The target foundation phase prepares the resources the future one-shot Job will
+need without creating or running that Job:
+
+- Namespace: `operator-secret-sync`
+- ServiceAccount: `operator-secret-sync/operator-plane-secret-sync`
+- Least-privilege RBAC in `kube-system` for `traefik-ovh-dns-credentials`
+- Least-privilege RBAC in `operator-artifacts` for `operator-artifacts-basicauth`
+- ConfigMap: `operator-secret-sync/operator-plane-secret-sync-script`
+- ConfigMap: `operator-secret-sync/openbao-ca-bundle`
+- Global OpenBao Kubernetes auth method, policy, and role for the ServiceAccount
+
+The foundation installer uses the normal repository script file
+`scripts/sync-operator-plane-secrets.sh` to build the script ConfigMap. It does
+not hand-copy the script into YAML, does not select a runner image, and does not
+run the sync Job.
+
+The foundation RBAC grants `get`, `update`, and `patch` only for the expected
+Secret names. It intentionally does not grant `create` because Kubernetes RBAC
+cannot safely restrict `create` by `resourceNames`. The future Job/run phase
+must either pre-create the target Secrets or deliberately revise that RBAC with
+a documented create tradeoff.
+
 ## Why A Job
 
 The sync runs in Kubernetes so the workload can authenticate to OpenBao with Kubernetes auth and its mounted ServiceAccount token. This avoids storing static OpenBao tokens in Kubernetes Secrets.
@@ -32,12 +56,17 @@ The Job uses:
 - OpenBao role: `operator-plane-secret-sync`
 - OpenBao policy: `operator-plane-secret-sync`
 
-The ServiceAccount is bound only to namespace-scoped Roles that can get, create, update, and patch Secrets in:
+The future Job uses the same ServiceAccount. In the foundation stage, that
+ServiceAccount is bound only to namespace-scoped Roles that can get, update,
+and patch the expected Secret names in:
 
 - `kube-system`
 - `operator-artifacts`
 
 The sync namespace manifest also ensures the `operator-artifacts` namespace exists because the `--all` bootstrap order configures secret sync before the operator-artifacts workload is installed. It has no access to unrelated namespaces and does not touch `trading`.
+
+The full Job stage must remain explicit until the runner image and Secret
+creation/update behavior are finalized.
 
 ## Secret Projections
 
@@ -122,12 +151,29 @@ Until Operator PKI is implemented, the current bootstrap CA or certificate autho
 
 ## Apply And Verify
 
-Use:
+Install and verify the foundation:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-foundation.sh --dry-run
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-foundation.sh
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-operator-secret-sync-foundation.sh
+```
+
+The broad verifier distinguishes foundation from future Job/run work:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-operator-secret-sync.sh
+```
+
+Use the full Job installer only after choosing a pinned standard runner image:
 
 ```bash
 ./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync.sh --dry-run
 ./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync.sh
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-operator-secret-sync.sh
 ```
 
 The install script does not run destructive cleanup. It only deletes an old Job with the exact same name before reapplying the Job, because Kubernetes Job pod templates are immutable.
+
+No real secrets are stored in Git. Scripts must not print Kubernetes Secret
+data, OpenBao tokens, private keys, certificate PEM contents, ciphertext,
+plaintext, or issuance JSON.

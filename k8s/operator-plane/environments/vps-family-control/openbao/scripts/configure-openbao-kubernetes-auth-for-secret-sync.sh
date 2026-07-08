@@ -21,17 +21,26 @@ vault_addr="https://127.0.0.1:8200"
 vault_cacert=""
 vault_cacert_fallback=""
 bao_addr="${vault_addr}"
+dry_run="false"
+
+required_env_keys=(
+  OPENBAO_NAMESPACE
+  OPENBAO_BOOTSTRAP_INIT_FILE
+  OPENBAO_TLS_DIR
+)
 
 usage() {
   cat <<EOF
-Usage: $0 [--init-file <path>]
+Usage: $0 [--env-file <path>] [--init-file <path>] [--dry-run]
 
 Configure Global OpenBao Kubernetes auth for the in-cluster operator-plane
 secret sync Job.
 
 Options:
+  --env-file <path>  Path to operator-plane.env.
   --init-file <path>  OpenBao init JSON containing a bootstrap/admin token.
                      Defaults to OPENBAO_BOOTSTRAP_INIT_FILE from operator-plane.env.
+  --dry-run          Print planned checks and changes without mutating Kubernetes or OpenBao.
   --help             Show this help.
 
 Safety:
@@ -101,6 +110,11 @@ apply_tokenreview_binding() {
   local service_account="$1"
 
   echo "Ensuring TokenReview permission for the OpenBao ServiceAccount."
+  if [[ "${dry_run}" = "true" ]]; then
+    echo "DRY-RUN: would apply ClusterRoleBinding openbao-global-tokenreview-auth-delegator for ${namespace}/${service_account}"
+    return 0
+  fi
+
   kubectl create clusterrolebinding openbao-global-tokenreview-auth-delegator \
     --clusterrole=system:auth-delegator \
     --serviceaccount="${namespace}:${service_account}" \
@@ -110,6 +124,11 @@ apply_tokenreview_binding() {
 
 configure_kubernetes_auth() {
   echo "Configuring Kubernetes auth using the in-cluster Kubernetes service host."
+  if [[ "${dry_run}" = "true" ]]; then
+    echo "DRY-RUN: would configure auth/${auth_path}/config with the in-cluster Kubernetes service host"
+    return 0
+  fi
+
   token_exec "${root_token}" sh -c '
     set -eu
     kubernetes_host="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
@@ -119,10 +138,18 @@ configure_kubernetes_auth() {
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
+    --env-file)
+      [[ "$#" -ge 2 ]] || fail "Missing value for --env-file."
+      env_file="$2"
+      shift
+      ;;
     --init-file)
       [[ "$#" -ge 2 ]] || fail "Missing value for --init-file."
       init_file="$2"
       shift
+      ;;
+    --dry-run)
+      dry_run="true"
       ;;
     --help)
       usage
@@ -143,9 +170,9 @@ require_command jq
 # shellcheck source=../../scripts/lib/load-operator-plane-env.sh
 source "${env_loader}"
 
-if [[ -f "${env_file}" ]]; then
-  load_operator_plane_env "${env_file}" "true"
-fi
+[[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
+load_operator_plane_env "${env_file}" "true" "${required_env_keys[@]}"
+namespace="${OPENBAO_NAMESPACE}"
 vault_cacert="$(operator_plane_env_openbao_client_cacert_in_pod)"
 vault_cacert_fallback="$(operator_plane_env_openbao_bootstrap_cacert_in_pod)"
 
@@ -171,7 +198,11 @@ echo "Discovered Global OpenBao ServiceAccount: ${openbao_service_account}"
 apply_tokenreview_binding "${openbao_service_account}"
 
 echo "Writing OpenBao policy ${policy_name}."
-token_exec_with_policy_file "${root_token}" "${policy_file}" "${policy_name}"
+if [[ "${dry_run}" = "true" ]]; then
+  echo "DRY-RUN: would write OpenBao policy ${policy_name} from versioned policy file"
+else
+  token_exec_with_policy_file "${root_token}" "${policy_file}" "${policy_name}"
+fi
 
 echo "Checking Kubernetes auth method at ${auth_path}/."
 auth_list_output="$(token_exec "${root_token}" bao auth list -format=json)"
@@ -179,17 +210,31 @@ if printf '%s\n' "${auth_list_output}" | jq -e --arg path "${auth_path}/" 'has($
   echo "Kubernetes auth method already exists."
 else
   echo "Enabling Kubernetes auth method."
-  token_exec "${root_token}" bao auth enable -path="${auth_path}" kubernetes >/dev/null
+  if [[ "${dry_run}" = "true" ]]; then
+    echo "DRY-RUN: would enable Kubernetes auth method at ${auth_path}/"
+  else
+    token_exec "${root_token}" bao auth enable -path="${auth_path}" kubernetes >/dev/null
+  fi
 fi
 
 configure_kubernetes_auth
 
 echo "Writing Kubernetes auth role ${role_name}."
-token_exec "${root_token}" bao write "auth/${auth_path}/role/${role_name}" \
-  "bound_service_account_names=${bound_service_account_name}" \
-  "bound_service_account_namespaces=${bound_service_account_namespace}" \
-  "policies=${policy_name}" \
-  "ttl=${role_ttl}" >/dev/null
+if [[ "${dry_run}" = "true" ]]; then
+  echo "DRY-RUN: would write Kubernetes auth role ${role_name} bound only to ${bound_service_account_namespace}/${bound_service_account_name}"
+else
+  token_exec "${root_token}" bao write "auth/${auth_path}/role/${role_name}" \
+    "bound_service_account_names=${bound_service_account_name}" \
+    "bound_service_account_namespaces=${bound_service_account_namespace}" \
+    "policies=${policy_name}" \
+    "ttl=${role_ttl}" >/dev/null
+fi
+
+if [[ "${dry_run}" = "true" ]]; then
+  echo "DRY-RUN: would verify Kubernetes auth method, policy, and role metadata."
+  echo "OpenBao Kubernetes auth for operator-plane secret sync dry-run completed."
+  exit 0
+fi
 
 echo "Verifying Kubernetes auth method exists."
 token_exec "${root_token}" bao auth list -format=json \

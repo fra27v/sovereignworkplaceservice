@@ -58,7 +58,7 @@ The bootstrap entrypoint currently supports:
 - Traefik ACME DNS-01 OVH setup
 - Global OpenBao baseline verification
 - OpenBao CA bundle projection into operator-secret-sync namespace
-- operator-plane secret import, Kubernetes auth configuration, and one-shot sync Job apply
+- operator-secret-sync foundation without running the sync Job
 - `operator-artifacts`
 - Operator PKI configure and verify
 - explicit `operator-vault` runtime TLS issuance and install with `--operator-vault-tls`
@@ -114,6 +114,13 @@ verification even if the sync Job runs on a different node and cannot access
 the host TLS directory. The CA bundle projection phase makes this ConfigMap
 available without requiring runtime TLS rotation to have completed first.
 
+The `--operator-secret-sync-foundation` phase is target operator-plane state.
+It ensures the public CA bundle projection, ServiceAccount, least-privilege
+RBAC, script ConfigMap, and Global OpenBao Kubernetes auth role/policy for
+`operator-secret-sync/operator-plane-secret-sync`. It does not create or run
+the `operator-secret-sync/operator-plane-secret-sync` Job, does not select a
+runner image, and does not mutate target runtime Secrets with synced values.
+
 ## Current TODO Phases
 
 Future work:
@@ -140,8 +147,11 @@ sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-oper
 Preview the operator-secret-sync phase:
 
 ```bash
-sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync --dry-run
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-foundation --dry-run
 ```
+
+The full `--operator-secret-sync` Job/run phase remains intentionally blocked
+until a pinned standard runner image is selected.
 
 Preview the Operator PKI phase:
 
@@ -180,6 +190,8 @@ Run read-only verification:
 ```bash
 git update-index --chmod=+x k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-openbao-ca-bundle-configmap.sh
 git update-index --chmod=+x k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh
+git update-index --chmod=+x k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-foundation.sh
+git update-index --chmod=+x k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-operator-secret-sync-foundation.sh
 ```
 
 This ensures the bootstrap and verify orchestrators can run target-ready
@@ -201,9 +213,17 @@ file.
 
 The in-cluster sync Job authenticates to OpenBao with Kubernetes auth through the `operator-plane-secret-sync` ServiceAccount and role. It does not use a static OpenBao token.
 
+The foundation phase configures that Kubernetes auth binding in Global OpenBao
+without creating static tokens and binds only the
+`operator-secret-sync/operator-plane-secret-sync` ServiceAccount.
+
 The sync script remains a normal versioned repository file. The install script generates and applies the runtime ConfigMap from that script, so changing sync logic does not require rebuilding an image.
 
 No custom sync image is created at this stage and no registry is introduced at this stage. The Job must use a pinned standard runner image satisfying `operator-secret-sync/image-contract.md`. The runner image is not selected yet, and real install fails before applying the Job until one is selected.
+
+The foundation phase does not choose, validate, pull, or run the runner image.
+The future Job/run phase will choose a pinned standard runner image and run the
+one-shot Job as an explicit step.
 
 Validate a candidate runner image with:
 

@@ -263,7 +263,8 @@ done
 
 run_verify_script "Traefik" "${env_dir}/traefik/scripts/verify-traefik-acme-dns01-ovh.sh"
 run_verify_script "OpenBao CA bundle projection" "${env_dir}/operator-secret-sync/scripts/verify-openbao-ca-bundle-configmap.sh" --env-file "${env_file}"
-run_verify_script "operator-secret-sync" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh" "warn"
+run_verify_script "operator-secret-sync foundation" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync-foundation.sh" --env-file "${env_file}"
+run_verify_script "operator-secret-sync Job/run" "${env_dir}/operator-secret-sync/scripts/verify-operator-secret-sync.sh" "warn" --env-file "${env_file}"
 run_verify_script "operator-artifacts" "${env_dir}/operator-artifacts/scripts/verify-operator-artifacts.sh"
 run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-openbao-global-audit.sh"
 run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh" --env-file "${env_file}"

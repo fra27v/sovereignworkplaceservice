@@ -1,9 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+sync_dir="$(cd -- "${script_dir}/.." && pwd)"
+env_dir="$(cd -- "${sync_dir}/.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+foundation_verifier="${script_dir}/verify-operator-secret-sync-foundation.sh"
+
 summary_ok=()
 summary_warn=()
 summary_fail=()
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  verify-operator-secret-sync.sh [--env-file <path>] [--help]
+
+Verifies operator-secret-sync in staged mode:
+  - foundation resources are required target state
+  - future Job/run and runtime Secret projection checks are WARN/TODO for now
+
+Options:
+  --env-file <path>  Path to operator-plane.env.
+  --help             Show this help.
+USAGE
+}
 
 ok() {
   summary_ok+=("$1")
@@ -42,7 +63,7 @@ expect_exact_keys() {
   shift 2
 
   if ! kubectl -n "${namespace}" get secret "${name}" >/dev/null 2>&1; then
-    fail_component "Secret ${namespace}/${name} is missing"
+    warn "TODO: runtime Secret ${namespace}/${name} is missing until the future operator-secret-sync Job phase runs"
     return 0
   fi
 
@@ -60,7 +81,7 @@ expect_exact_keys() {
   if cmp -s "${expected_file}" "${actual_file}"; then
     ok "Secret ${namespace}/${name} contains the expected key names only"
   else
-    fail_component "Secret ${namespace}/${name} key names do not match expected set"
+    warn "TODO: Secret ${namespace}/${name} key names do not match expected set; future Job/run phase must reconcile it"
   fi
 
   rm -f "${expected_file}" "${actual_file}"
@@ -92,7 +113,7 @@ check_job() {
   if [[ "${succeeded:-0}" = "1" ]]; then
     ok "operator-secret-sync Job completed successfully"
   else
-    fail_component "operator-secret-sync Job has not completed successfully"
+    warn "TODO: operator-secret-sync Job has not completed successfully; runner image and Job execution are future explicit work"
   fi
 }
 
@@ -108,6 +129,21 @@ check_openbao_ca_bundle() {
     ok "ConfigMap operator-secret-sync/openbao-ca-bundle contains key ca.crt"
   else
     fail_component "ConfigMap operator-secret-sync/openbao-ca-bundle is missing key ca.crt"
+  fi
+}
+
+check_foundation() {
+  if [[ ! -x "${foundation_verifier}" ]]; then
+    fail_component "Foundation verifier is missing or not executable: ${foundation_verifier}"
+    return 0
+  fi
+
+  echo
+  echo "== operator-secret-sync foundation =="
+  if "${foundation_verifier}" --env-file "${env_file}"; then
+    ok "operator-secret-sync foundation verification passed"
+  else
+    fail_component "operator-secret-sync foundation verification failed"
   fi
 }
 
@@ -136,17 +172,34 @@ print_summary() {
   fi
 }
 
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ "$#" -ge 2 ]] || {
+        echo "--env-file requires a path." >&2
+        exit 1
+      }
+      env_file="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+  esac
+done
+
 require_command kubectl
 require_command jq
+check_foundation
 
-check_resource "Namespace operator-secret-sync" get namespace operator-secret-sync
-check_resource "ServiceAccount operator-secret-sync/operator-plane-secret-sync" -n operator-secret-sync get serviceaccount operator-plane-secret-sync
-check_resource "Role kube-system/operator-plane-secret-sync" -n kube-system get role operator-plane-secret-sync
-check_resource "RoleBinding kube-system/operator-plane-secret-sync" -n kube-system get rolebinding operator-plane-secret-sync
-check_resource "Role operator-artifacts/operator-plane-secret-sync" -n operator-artifacts get role operator-plane-secret-sync
-check_resource "RoleBinding operator-artifacts/operator-plane-secret-sync" -n operator-artifacts get rolebinding operator-plane-secret-sync
-check_resource "ConfigMap operator-secret-sync/operator-plane-secret-sync-script" -n operator-secret-sync get configmap operator-plane-secret-sync-script
-check_openbao_ca_bundle
+echo
+echo "== future operator-secret-sync Job/run =="
 check_job
 
 expect_exact_keys kube-system traefik-ovh-dns-credentials \
