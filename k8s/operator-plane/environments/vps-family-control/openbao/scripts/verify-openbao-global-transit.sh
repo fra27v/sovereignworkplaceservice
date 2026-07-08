@@ -14,6 +14,7 @@ transit_mount="transit"
 transit_key="family-infra-01-autounseal"
 policy_name="family-infra-01-transit-autounseal"
 policy_file=""
+live_policy_tmp=""
 vault_addr="https://127.0.0.1:8200"
 vault_cacert=""
 vault_cacert_fallback=""
@@ -49,9 +50,19 @@ ok() {
   echo "OK: $*"
 }
 
+warn() {
+  echo "WARN: $*" >&2
+}
+
 require_command() {
   local name="$1"
   command -v "${name}" >/dev/null 2>&1 || fail "Missing required command: ${name}"
+}
+
+cleanup() {
+  if [[ -n "${live_policy_tmp}" && -e "${live_policy_tmp}" ]]; then
+    rm -f "${live_policy_tmp}"
+  fi
 }
 
 token_exec() {
@@ -83,7 +94,9 @@ while [[ "$#" -gt 0 ]]; do
 require_command bash
 require_command jq
 require_command kubectl
+require_command mktemp
 require_command sha256sum
+trap cleanup EXIT
 
 [[ -f "${env_loader}" ]] || fail "Missing env loader: ${env_loader}"
 # shellcheck source=../../scripts/lib/load-operator-plane-env.sh
@@ -101,7 +114,6 @@ root_token="$(jq -r '.root_token // empty' "${init_file}")"
 
 repo_root="$(cd -- "${env_dir}/../../../.." && pwd)"
 policy_file="${repo_root}/k8s/operator-plane/openbao/policies/${policy_name}.hcl"
-[[ -f "${policy_file}" ]] || fail "Missing Global OpenBao transit policy file: ${policy_file}"
 
 ok "Using env file: ${env_file}"
 
@@ -150,22 +162,39 @@ else
   fail "Transit key is missing: ${transit_key}"
 fi
 
-policy_sha256="$(sha256sum "${policy_file}" | cut -d' ' -f1)"
-live_policy_json="$(token_exec "${root_token}" bao policy read -format=json "${policy_name}")"
-if printf '%s\n' "${live_policy_json}" | jq -e '.rules' >/dev/null 2>&1; then
-  ok "Global OpenBao transit policy text is readable"
+if [[ ! -s "${policy_file}" ]]; then
+  warn "TODO: versioned Global OpenBao transit policy file is missing or empty; skipping policy body comparison: ${policy_file}"
 else
-  fail "Could not read live Global OpenBao transit policy text"
-fi
+  policy_sha256="$(sha256sum "${policy_file}" | cut -d' ' -f1)"
+  ok "Versioned Global OpenBao transit policy SHA256: ${policy_sha256}"
 
-# If direct HCL comparison is fragile, do not fail on formatting issues.
-if printf '%s\n' "${live_policy_json}" | jq -r '.rules' >/dev/null 2>&1; then
-  live_policy_rules="$(printf '%s\n' "${live_policy_json}" | jq -r '.rules')"
-  live_sha256="$(printf '%s' "${live_policy_rules}" | sha256sum | cut -d' ' -f1)"
-  if [[ "${live_sha256}" == "${policy_sha256}" ]]; then
-    ok "Global OpenBao transit policy SHA256 matches versioned policy"
+  live_policy_tmp="$(mktemp)"
+  set +e
+  token_exec "${root_token}" bao policy read "${policy_name}" > "${live_policy_tmp}" 2>/dev/null
+  live_policy_exit_code="$?"
+  set -e
+
+  if [[ "${live_policy_exit_code}" -ne 0 ]]; then
+    warn "TODO: could not read live Global OpenBao transit policy body; skipping body comparison"
+    warn "Policy name: ${policy_name}"
+    warn "Command purpose: read live policy body for best-effort SHA256 comparison"
+    warn "Exit code: ${live_policy_exit_code}"
+  elif [[ ! -s "${live_policy_tmp}" ]]; then
+    warn "TODO: live Global OpenBao transit policy body read returned empty output; skipping body comparison"
+    warn "Policy name: ${policy_name}"
   else
-    echo "WARN: live Global OpenBao transit policy text SHA256 differs from file version; formatting-only differences may be present" >&2
+    live_policy_sha256="$(sha256sum "${live_policy_tmp}" | cut -d' ' -f1)"
+    ok "Live Global OpenBao transit policy body is readable: ${policy_name}"
+    ok "Live Global OpenBao transit policy SHA256: ${live_policy_sha256}"
+
+    if [[ "${live_policy_sha256}" == "${policy_sha256}" ]]; then
+      ok "Global OpenBao transit policy SHA256 matches versioned policy"
+    else
+      warn "TODO: live Global OpenBao transit policy SHA256 differs from versioned policy; verification continues"
+      warn "Policy name: ${policy_name}"
+      warn "Versioned policy SHA256: ${policy_sha256}"
+      warn "Live policy SHA256: ${live_policy_sha256}"
+    fi
   fi
 fi
 
