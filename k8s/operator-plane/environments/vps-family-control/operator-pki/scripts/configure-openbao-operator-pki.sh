@@ -263,7 +263,29 @@ token_exec "${root_token}" bao write "${OPENBAO_PKI_MOUNT}/roles/${OPENBAO_OPERA
 
 echo "Exporting public Operator CA bundle."
 mkdir -p "${OPERATOR_PKI_PUBLIC_DIR}"
-chmod 0755 "${OPERATOR_PKI_PUBLIC_DIR}"
+ensure_public_parent_traversable() {
+  # Ensure parent directories are at least executable for others so unprivileged
+  # verifiers can traverse into the public directory without exposing other
+  # private content. Walk up a few ancestors conservatively and add o+x and
+  # remove o+r/o+w where possible.
+  local dir="$1"
+  local parent
+  parent="$(dirname -- "${dir}")"
+  local i=0
+  local max_levels=6
+  while [[ "${parent}" != "/" && "${parent}" != "." && ${i} -lt ${max_levels} ]]; do
+    if [[ -d "${parent}" ]]; then
+      chmod o-rw "${parent}" 2>/dev/null || true
+      chmod o+x "${parent}" 2>/dev/null || true
+    fi
+    parent="$(dirname -- "${parent}")"
+    i=$((i+1))
+  done
+  # Ensure the public directory itself is readable/traversable
+  chmod 0755 "${dir}" 2>/dev/null || true
+}
+
+ensure_public_parent_traversable "${OPERATOR_PKI_PUBLIC_DIR}"
 ca_bundle_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem"
 ca_checksum_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem.sha256"
 printf '%s\n' "${ca_certificate}" > "${ca_bundle_path}"

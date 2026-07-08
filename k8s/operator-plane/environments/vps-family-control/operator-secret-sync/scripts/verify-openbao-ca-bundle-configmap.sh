@@ -115,8 +115,17 @@ configmap_content="$(kubectl -n "${namespace}" get configmap "${configmap_name}"
 
 ok "ConfigMap key is non-empty"
 
-[[ -f "${ca_bundle_path}" ]] || fail "Source CA bundle missing: ${ca_bundle_path}"
-[[ -s "${ca_bundle_path}" ]] || fail "Source CA bundle is empty: ${ca_bundle_path}"
+if [[ ! -e "${ca_bundle_path}" ]]; then
+  fail "Source CA bundle missing: ${ca_bundle_path}"
+fi
+
+if [[ ! -r "${ca_bundle_path}" ]]; then
+  fail "Source CA bundle is not readable: ${ca_bundle_path} (permission denied)"
+fi
+
+if [[ ! -s "${ca_bundle_path}" ]]; then
+  fail "Source CA bundle is empty: ${ca_bundle_path}"
+fi
 
 source_sha256="$(sha256sum "${ca_bundle_path}" | cut -d' ' -f1)"
 configmap_sha256="$(get_configmap_sha256 "${namespace}" "${configmap_name}" "${configmap_key}")"

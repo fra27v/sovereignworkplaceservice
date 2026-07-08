@@ -52,8 +52,17 @@ require_command() {
 validate_source_file() {
   local path="$1"
 
-  [[ -f "${path}" ]] || fail "Source file does not exist: ${path}"
-  [[ -s "${path}" ]] || fail "Source file is empty: ${path}"
+  if [[ ! -e "${path}" ]]; then
+    fail "Source file does not exist: ${path}"
+  fi
+
+  if [[ ! -r "${path}" ]]; then
+    fail "Source file is not readable: ${path} (permission denied)"
+  fi
+
+  if [[ ! -s "${path}" ]]; then
+    fail "Source file is empty: ${path}"
+  fi
 }
 
 validate_source_checksum() {

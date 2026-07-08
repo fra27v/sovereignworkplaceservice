@@ -124,10 +124,28 @@ fi
 
 ca_bundle_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem"
 ca_checksum_path="${OPERATOR_PKI_PUBLIC_DIR}/operator-ca-bundle.pem.sha256"
-[[ -s "${ca_bundle_path}" ]] || fail "Public CA bundle is missing or empty: ${ca_bundle_path}"
+if [[ ! -e "${ca_bundle_path}" ]]; then
+  fail "Public CA bundle missing: ${ca_bundle_path}"
+fi
+
+if [[ ! -r "${ca_bundle_path}" ]]; then
+  fail "Public CA bundle is not readable: ${ca_bundle_path} (permission denied)"
+fi
+
+if [[ ! -s "${ca_bundle_path}" ]]; then
+  fail "Public CA bundle is empty: ${ca_bundle_path}"
+fi
+
 ok "Public CA bundle exists"
 
-[[ -s "${ca_checksum_path}" ]] || fail "Public CA bundle checksum is missing or empty: ${ca_checksum_path}"
+if [[ ! -e "${ca_checksum_path}" ]]; then
+  fail "Public CA bundle checksum missing: ${ca_checksum_path}"
+fi
+
+if [[ ! -r "${ca_checksum_path}" ]]; then
+  fail "Public CA bundle checksum is not readable: ${ca_checksum_path} (permission denied)"
+fi
+
 (
   cd "${OPERATOR_PKI_PUBLIC_DIR}"
   sha256sum -c operator-ca-bundle.pem.sha256 >/dev/null

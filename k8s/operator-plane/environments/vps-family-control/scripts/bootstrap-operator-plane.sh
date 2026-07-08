@@ -13,6 +13,7 @@ run_operator_secret_sync="false"
 run_operator_artifacts="false"
 run_operator_pki="false"
 run_operator_vault_tls="false"
+run_openbao_transit_configure="false"
 
 summary_ok=()
 summary_warn=()
@@ -157,6 +158,9 @@ EOF
 
   run_if_executable "Global OpenBao audit verify" "${openbao_scripts}/verify-openbao-global-audit.sh" "false"
   run_if_executable "Global OpenBao transit verify" "${openbao_scripts}/verify-openbao-global-transit.sh" "false"
+  if [[ "${run_openbao_transit_configure}" = "true" ]]; then
+    run_if_executable "Global OpenBao transit configure" "${openbao_scripts}/configure-openbao-global-transit-family-infra-01.sh" "false" --env-file "${env_file}"
+  fi
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "Global OpenBao phase completed"
   fi
@@ -298,6 +302,9 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --operator-vault-tls)
       run_operator_vault_tls="true"
+      ;;
+    --openbao-transit-configure)
+      run_openbao_transit_configure="true"
       ;;
     --env-file)
       [[ "$#" -ge 2 ]] || {
