@@ -59,6 +59,11 @@ runner image, must be validated before Job execution. The validation phase does
 not run the real sync Job, does not mount Secrets, and does not mutate target
 runtime Secrets. It confirms only the no-secret runner image contract.
 
+The operator-secret-sync runner contract intentionally excludes `openssl`.
+BasicAuth hash generation is prepared by host/bootstrap/import tooling before
+sync. OpenBao KV stores the final `users` value, and the sync Job copies that
+value into Kubernetes without generating hashes at runtime.
+
 Custom images require an explicit ADR before introduction. The ADR must explain
 why a pinned standard image is insufficient, where the image is built, how it is
 scanned, and how updates are tracked.

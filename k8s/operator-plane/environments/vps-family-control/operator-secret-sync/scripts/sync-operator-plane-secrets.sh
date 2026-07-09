@@ -24,7 +24,6 @@ require_command() {
 require_command curl
 require_command jq
 require_command kubectl
-require_command openssl
 
 [[ -f "${service_account_token_file}" ]] || fail "Missing mounted ServiceAccount token."
 [[ -f "${BAO_CACERT}" ]] || fail "Missing OpenBao CA bundle: ${BAO_CACERT}"
@@ -89,18 +88,12 @@ jq -r '
 ' "${traefik_json}" > "${traefik_env}"
 chmod 0600 "${traefik_env}"
 
-username="$(jq -r '.username // empty' "${artifacts_json}")"
-token="$(jq -r '.token // empty' "${artifacts_json}")"
-[[ -n "${username}" ]] || fail "operator-artifacts username is missing from OpenBao KV."
-[[ -n "${token}" ]] || fail "operator-artifacts token is missing from OpenBao KV."
-
 users_file="${tmp_dir}/users"
-# Apache MD5 is chosen because openssl is small and commonly available in
-# purpose-built sync images. Do not echo the generated htpasswd line.
-password_hash="$(printf '%s' "${token}" | openssl passwd -apr1 -stdin)"
-printf '%s:%s\n' "${username}" "${password_hash}" > "${users_file}"
+if ! jq -e '(.users // "") != ""' "${artifacts_json}" >/dev/null; then
+  fail "operator-artifacts users is missing from OpenBao KV. Precompute the BasicAuth htpasswd users value and import it into OpenBao before running sync."
+fi
+jq -r '.users' "${artifacts_json}" > "${users_file}"
 chmod 0600 "${users_file}"
-unset token password_hash
 
 echo "Applying runtime Secret projection: kube-system/traefik-ovh-dns-credentials"
 kubectl -n kube-system create secret generic traefik-ovh-dns-credentials \

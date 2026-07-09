@@ -293,7 +293,17 @@ Validate a candidate runner image with:
 ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-runner-image
 ```
 
-The runner image must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `openssl passwd -apr1` support, and CA certificates. No custom image is created for v1, and the pod must not install packages at runtime. Future vulnerability management means updating the pinned image reference and rerunning the Kubernetes contract check; changing sync logic updates the script and generated ConfigMap, not the image.
+The runner image must provide `bash`, `curl`, `jq`, `kubectl`, and CA
+certificates. It does not require the `openssl` CLI. BasicAuth hash generation
+is not performed in the sync Job. OpenBao KV stores the final
+operator-artifacts BasicAuth `users` value, and the future sync Job copies that
+value verbatim into Kubernetes Secret key `users`. Host/bootstrap/import
+tooling may prepare the htpasswd value outside the runner, but no real secret
+values are stored in Git or printed. No custom image is created for v1, and the
+pod must not install packages at runtime. Future vulnerability management means
+updating the pinned image reference and rerunning the Kubernetes contract
+check; changing sync logic updates the script and generated ConfigMap, not the
+image.
 
 Verify the dependency lock without touching live state:
 

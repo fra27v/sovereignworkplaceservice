@@ -70,6 +70,54 @@ cleanup_job() {
   fi
 }
 
+print_failure_diagnostics() {
+  local pod_names pod_name
+
+  echo "Validation Job did not complete successfully. Safe diagnostics follow." >&2
+  kubectl -n "${namespace}" get job "${job_name}" -o wide >&2 || true
+
+  pod_names="$(kubectl -n "${namespace}" get pods \
+    -l "job-name=${job_name}" \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
+
+  if [[ -n "${pod_names}" ]]; then
+    while IFS= read -r pod_name; do
+      [[ -n "${pod_name}" ]] || continue
+      echo "Validation pod: ${pod_name}" >&2
+      kubectl -n "${namespace}" get pod "${pod_name}" -o wide >&2 || true
+      kubectl -n "${namespace}" describe pod "${pod_name}" >&2 || true
+      kubectl -n "${namespace}" logs "${pod_name}" --tail=80 >&2 || true
+    done <<< "${pod_names}"
+  fi
+}
+
+wait_for_job_result() {
+  local complete failed
+  local deadline_seconds=180
+  local start_seconds now_seconds
+
+  start_seconds="$(date +%s)"
+  while true; do
+    complete="$(kubectl -n "${namespace}" get job "${job_name}" -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)"
+    failed="$(kubectl -n "${namespace}" get job "${job_name}" -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)"
+
+    if [[ "${complete}" = "True" ]]; then
+      return 0
+    fi
+
+    if [[ "${failed}" = "True" ]]; then
+      return 1
+    fi
+
+    now_seconds="$(date +%s)"
+    if (( now_seconds - start_seconds >= deadline_seconds )); then
+      return 1
+    fi
+
+    sleep 2
+  done
+}
+
 run_validation_job() {
   local suffix
   suffix="$(date +%s)-${RANDOM}"
@@ -109,8 +157,6 @@ spec:
               curl --version >/dev/null
               jq --version >/dev/null
               kubectl version --client=true >/dev/null
-              openssl version >/dev/null
-              printf "%s\n" "probe" | openssl passwd -apr1 -stdin >/dev/null
               test -r /etc/ssl/certs/ca-certificates.crt || test -d /etc/ssl/certs
           securityContext:
             allowPrivilegeEscalation: false
@@ -121,7 +167,11 @@ spec:
                 - ALL
 EOF
 
-  kubectl -n "${namespace}" wait --for=condition=complete "job/${job_name}" --timeout=180s
+  if ! wait_for_job_result; then
+    print_failure_diagnostics
+    return 1
+  fi
+
   kubectl -n "${namespace}" logs "job/${job_name}" --tail=50 >/dev/null || true
   cleanup_job
   trap - EXIT

@@ -93,8 +93,7 @@
         "bash",
         "curl",
         "jq",
-        "kubectl",
-        "openssl"
+        "kubectl"
       ]
     },
     {

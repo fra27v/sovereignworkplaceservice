@@ -18,19 +18,22 @@ The runner image must provide:
 - `curl`
 - `jq`
 - `kubectl`
-- `openssl`
-- `openssl passwd -apr1` support
 - CA certificates
 
-The current sync script uses `openssl passwd -apr1 -stdin` for htpasswd-compatible BasicAuth hash generation.
+The runner does not require the `openssl` CLI and must not generate BasicAuth
+hashes at runtime.
 
-## Optional Tools
+## Secret Value Model
 
-The runner image may also provide:
+OpenBao KV stores final Kubernetes Secret data values. The sync Job copies
+authorized fields into Kubernetes Secrets without generating, hashing,
+encrypting, decrypting, or otherwise transforming secret material except for
+the JSON and base64 handling required by APIs.
 
-- `htpasswd`
-
-`htpasswd` is optional when `openssl passwd -apr1` is available and verified.
+For operator-artifacts BasicAuth, the OpenBao KV field `users` must already
+contain the final htpasswd content. Host/bootstrap/import tooling may prepare
+that value outside the runner, but the sync Job copies `users` verbatim into
+the Kubernetes Secret key `users`.
 
 ## Selection State
 

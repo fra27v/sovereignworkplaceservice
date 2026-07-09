@@ -80,7 +80,10 @@ It creates or updates:
 - `kube-system/traefik-ovh-dns-credentials`
 - `operator-artifacts/operator-artifacts-basicauth`
 
-For `operator-artifacts`, the script derives the `users` htpasswd line inside the pod from `username` and `token`. The chosen implementation uses `openssl passwd -apr1 -stdin` because it avoids passing the token as a command-line argument and keeps the required image small. The generated htpasswd line is never echoed.
+For `operator-artifacts`, OpenBao KV stores the final BasicAuth htpasswd
+content in the field `users`. The sync Job copies that value verbatim into the
+Kubernetes Secret key `users`. It does not derive a hash from `username` and
+`token` inside the pod.
 
 ## Runner Image Contract
 
@@ -128,11 +131,12 @@ That image must provide:
 - `curl`
 - `jq`
 - `kubectl`
-- `openssl`
-- `openssl passwd -apr1` support
 - CA certificates
 
-`htpasswd` is optional because the current sync script uses `openssl passwd -apr1 -stdin` for BasicAuth hash generation.
+The runner does not require the `openssl` CLI. BasicAuth hash generation is not
+performed in the sync Job. Host/bootstrap/import tooling may prepare the
+htpasswd `users` value outside the runner and import it into OpenBao KV before
+the sync Job runs.
 
 The image must not install packages or download binaries at pod startup.
 Updating the runner image is a separate operational step. No custom image is
