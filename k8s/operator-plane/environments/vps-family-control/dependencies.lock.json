@@ -85,10 +85,10 @@
       "workload": "operator-secret-sync",
       "namespace": "operator-secret-sync",
       "image": "docker.io/alpine/k8s:1.35.4",
-      "digest": null,
+      "digest": "sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04",
       "status": "candidate",
       "updateFlow": "validate-then-enable-job",
-      "reason": "Standard Kubernetes toolbox candidate matching current cluster minor; digest required before real Job execution.",
+      "reason": "Standard Kubernetes toolbox candidate matching current cluster minor; validated on k3s and digest-pinned before real Job execution.",
       "requiredTools": [
         "bash",
         "curl",

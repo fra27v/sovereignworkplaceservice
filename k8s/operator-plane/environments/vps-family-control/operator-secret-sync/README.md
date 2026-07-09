@@ -101,10 +101,13 @@ The Job must use a pinned standard runner image that satisfies
 required before the real sync Job can run.
 
 The current runner image candidate is recorded in the dependency lock as
-`docker.io/alpine/k8s:1.35.4`. It is a candidate only; `job.yaml` intentionally
-uses an invalid placeholder image reference, and the install script fails before
-applying the Job until a valid pinned standard runner image is selected and the
-manifest is updated through a future explicit phase.
+`docker.io/alpine/k8s:1.35.4` with digest
+`sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04`.
+It is validated and digest-pinned in the dependency lock, but it is still a
+candidate for the real Job. `job.yaml` intentionally uses an invalid
+placeholder image reference, and the install script fails before applying the
+Job until the manifest is updated through a future explicit phase. Future Job
+execution must use the tag plus digest form.
 
 Validate the candidate from `dependencies.lock.json` through Kubernetes before
 enabling the real Job:
@@ -159,8 +162,9 @@ Resolve a digest through the target k3s/containerd tooling:
 
 Review the RepoDigest candidate, then manually copy the selected `sha256`
 digest into `dependencies.lock.json`. The helper does not edit repository
-files. The older `check-runner-image-contract.sh` Docker path is deprecated and
-non-authoritative.
+files. The selected candidate is currently digest-pinned in the lock, but the
+real sync Job is still not enabled. The older `check-runner-image-contract.sh`
+Docker path is deprecated and non-authoritative.
 
 Future vulnerability management means selecting an updated pinned image reference, rerunning the contract check, updating `job.yaml`, and reapplying the Job through the normal install flow. It does not require changing the sync script unless the tool contract changes.
 

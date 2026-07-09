@@ -153,9 +153,10 @@ automount, drops Linux capabilities, and uses a read-only root filesystem. It
 does not force `runAsNonRoot` for v1 because the standard candidate image may
 not declare a non-root user.
 
-The validation-only phase does not require the candidate digest yet. The real
-sync Job does require a reviewed `sha256` digest in `dependencies.lock.json`
-and a Job image reference that uses that digest.
+The validation-only phase can run before the candidate digest is known. The
+selected runner image is now digest-pinned in `dependencies.lock.json`. The
+real sync Job is still not enabled, and future Job execution must use the
+validated tag plus digest in the Job image reference.
 
 ## Current TODO Phases
 
@@ -283,8 +284,10 @@ The future Job/run phase will choose a pinned standard runner image and run the
 one-shot Job as an explicit step.
 
 The candidate `docker.io/alpine/k8s:1.35.4` is tracked in
-`dependencies.lock.json`. It remains a candidate until the future Job/run phase
-selects and applies a digest-pinned runner image.
+`dependencies.lock.json` with digest
+`sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04`.
+It remains a candidate until the future Job/run phase updates `job.yaml` to use
+the validated tag plus digest and applies the real sync Job.
 
 Validate a candidate runner image with:
 

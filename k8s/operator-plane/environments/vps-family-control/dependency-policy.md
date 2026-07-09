@@ -35,6 +35,9 @@ The operator-secret-sync runner candidate is read from
 `--operator-secret-sync-runner-image` bootstrap phase. That validation uses a
 temporary Kubernetes workload on the k3s/containerd runtime path. Docker-based
 runner checks are deprecated and are not authoritative.
+The selected runner candidate is digest-pinned in the lock, but the real sync
+Job remains disabled until the Job manifest is updated to use the validated tag
+plus digest.
 
 Do not invent digests. Add a digest only after it is obtained from a trusted
 registry or release source during an update phase.
