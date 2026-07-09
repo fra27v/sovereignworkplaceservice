@@ -10,6 +10,7 @@ run_traefik="false"
 run_openbao="false"
 run_operator_secret_sync_ca_bundle="false"
 run_operator_secret_sync_foundation="false"
+run_operator_secret_sync_runner_image="false"
 run_operator_secret_sync="false"
 run_operator_artifacts="false"
 run_operator_pki="false"
@@ -22,7 +23,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -33,6 +34,8 @@ Options:
   --openbao                          Run Global OpenBao baseline verification only.
   --operator-secret-sync-ca-bundle   Project OpenBao CA bundle into operator-secret-sync namespace.
   --operator-secret-sync-foundation  Install operator-secret-sync foundation without creating or running the Job.
+  --operator-secret-sync-runner-image
+                                      Validate the locked runner image candidate with a temporary no-secret Kubernetes Job.
   --operator-secret-sync             Full future Job phase; blocked until runner image selection.
   --operator-artifacts               Run operator-artifacts bootstrap.
   --operator-pki                     Configure and verify Operator PKI foundation.
@@ -50,6 +53,10 @@ Safety:
   - --operator-secret-sync-foundation installs ServiceAccount, RBAC, script
     ConfigMap, CA bundle projection, and OpenBao Kubernetes auth without
     running the sync Job or selecting a runner image.
+  - --operator-secret-sync-runner-image validates only the candidate image from
+    dependencies.lock.json through Kubernetes/k3s/containerd-compatible
+    execution. It does not run the real sync Job and does not mutate target
+    runtime Secrets.
   - --all currently includes only supported phases and does not enable the full
     operator-secret-sync Job/runner-image phase.
   - --operator-secret-sync is explicit and must be used when the full phase is
@@ -186,9 +193,13 @@ phase_operator_secret_sync() {
     run_if_executable "operator-secret-sync foundation install" "${sync_scripts}/install-operator-secret-sync-foundation.sh" "true" --env-file "${env_file}"
   fi
 
+  if [[ "${run_operator_secret_sync_runner_image}" = "true" ]]; then
+    run_if_executable "operator-secret-sync runner image validation" "${sync_scripts}/validate-runner-image-contract.sh" "true"
+  fi
+
   if [[ "${run_operator_secret_sync}" = "true" ]]; then
-    warn "Full operator-secret-sync Job phase is blocked until a pinned standard runner image is selected."
-    warn "Use --operator-secret-sync-foundation for current target state."
+    warn "Full operator-secret-sync Job phase is blocked until the runner image is digest-pinned and selected in job.yaml."
+    warn "Use --operator-secret-sync-foundation and --operator-secret-sync-runner-image for current target state."
   fi
 
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
@@ -287,6 +298,7 @@ while [[ "$#" -gt 0 ]]; do
       run_openbao="true"
       run_operator_secret_sync_ca_bundle="true"
       run_operator_secret_sync_foundation="true"
+      run_operator_secret_sync_runner_image="false"
       run_operator_secret_sync="false"
       run_operator_artifacts="true"
       run_operator_pki="true"
@@ -302,6 +314,9 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --operator-secret-sync-foundation)
       run_operator_secret_sync_foundation="true"
+      ;;
+    --operator-secret-sync-runner-image)
+      run_operator_secret_sync_runner_image="true"
       ;;
     --operator-secret-sync)
       run_operator_secret_sync="true"
@@ -342,7 +357,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync_foundation}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync_foundation}" != "true" && "${run_operator_secret_sync_runner_image}" != "true" && "${run_operator_secret_sync}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
   usage >&2
   exit 1
 fi
@@ -353,7 +368,7 @@ if [[ "${run_openbao}" = "true" ]]; then
   phase_openbao_global
 fi
 
-if [[ "${run_operator_secret_sync}" = "true" || "${run_operator_secret_sync_foundation}" = "true" || "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
+if [[ "${run_operator_secret_sync}" = "true" || "${run_operator_secret_sync_runner_image}" = "true" || "${run_operator_secret_sync_foundation}" = "true" || "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
   phase_operator_secret_sync
 fi
 

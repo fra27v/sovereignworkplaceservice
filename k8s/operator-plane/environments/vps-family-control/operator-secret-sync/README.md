@@ -95,13 +95,32 @@ intent:
 
 The Job must use a pinned standard runner image that satisfies
 `image-contract.md`. The `latest` tag is forbidden, and digest pinning is
-preferred once the selected image is finalized.
+required before the real sync Job can run.
 
 The current runner image candidate is recorded in the dependency lock as
 `docker.io/alpine/k8s:1.35.4`. It is a candidate only; `job.yaml` intentionally
 uses an invalid placeholder image reference, and the install script fails before
 applying the Job until a valid pinned standard runner image is selected and the
 manifest is updated through a future explicit phase.
+
+Validate the candidate from `dependencies.lock.json` through Kubernetes before
+enabling the real Job:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/validate-runner-image-contract.sh --dry-run
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-runner-image
+```
+
+The validation uses a temporary no-secret Kubernetes Job on the k3s/containerd
+runtime path. It does not use Docker, does not use the real
+`operator-plane-secret-sync` ServiceAccount, does not mount OpenBao trust or
+Kubernetes Secrets, does not call OpenBao, does not run the real sync Job, and
+does not mutate target runtime Secrets.
+
+The validation workload keeps the pod unprivileged, disables ServiceAccount
+token automount, drops Linux capabilities, and uses a read-only root
+filesystem. It does not force `runAsNonRoot` for v1 because the standard
+candidate image may not declare a non-root user.
 
 That image must provide:
 
@@ -115,7 +134,10 @@ That image must provide:
 
 `htpasswd` is optional because the current sync script uses `openssl passwd -apr1 -stdin` for BasicAuth hash generation.
 
-The image must not install packages or download binaries at pod startup. Updating the runner image is a separate operational step. A custom image may be reconsidered later only if no acceptable standard runner image satisfies the contract.
+The image must not install packages or download binaries at pod startup.
+Updating the runner image is a separate operational step. No custom image is
+created for v1. A custom image may be reconsidered later only if no acceptable
+standard runner image satisfies the contract.
 
 The sync logic is kept as a normal repository script at:
 
@@ -125,14 +147,16 @@ scripts/sync-operator-plane-secrets.sh
 
 The install script creates the runtime ConfigMap from that file with `kubectl create configmap --from-file ... --dry-run=client -o yaml | kubectl apply -f -`. This keeps the script easy to review and lint without requiring an image build for every sync logic change.
 
-Use these commands to validate a candidate image reference before replacing the placeholder:
+Resolve a digest through the target k3s/containerd tooling:
 
 ```bash
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>' --dry-run
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>'
+./k8s/operator-plane/environments/vps-family-control/scripts/resolve-image-digest.sh --image 'docker.io/alpine/k8s:1.35.4'
 ```
 
-The dry run does not pull or run anything. The real check uses a local Docker-compatible runtime and does not require secrets.
+Review the RepoDigest candidate, then manually copy the selected `sha256`
+digest into `dependencies.lock.json`. The helper does not edit repository
+files. The older `check-runner-image-contract.sh` Docker path is deprecated and
+non-authoritative.
 
 Future vulnerability management means selecting an updated pinned image reference, rerunning the contract check, updating `job.yaml`, and reapplying the Job through the normal install flow. It does not require changing the sync script unless the tool contract changes.
 
@@ -141,8 +165,8 @@ Applying that change to Kubernetes is a separate future update phase. k3s
 managed dependencies and Helm-managed dependencies have their own update flows;
 the operator-secret-sync runner image is repository-managed through the Job
 manifest. The runner image uses the validate-then-enable-Job flow and requires
-validation plus digest pinning before real Job execution. Introducing a custom
-runner image requires an explicit ADR.
+Kubernetes validation plus digest pinning before real Job execution.
+Introducing a custom runner image requires an explicit ADR.
 
 ## Bootstrap Env Parser
 

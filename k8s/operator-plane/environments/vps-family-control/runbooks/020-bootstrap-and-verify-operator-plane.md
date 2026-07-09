@@ -69,6 +69,7 @@ The bootstrap entrypoint currently supports:
 - Global OpenBao baseline verification
 - OpenBao CA bundle projection into operator-secret-sync namespace
 - operator-secret-sync foundation without running the sync Job
+- operator-secret-sync runner image validation without running the sync Job
 - `operator-artifacts`
 - Operator PKI configure and verify
 - explicit `operator-vault` runtime TLS issuance and install with `--operator-vault-tls`
@@ -138,6 +139,24 @@ RBAC, script ConfigMap, and Global OpenBao Kubernetes auth role/policy for
 the `operator-secret-sync/operator-plane-secret-sync` Job, does not select a
 runner image, and does not mutate target runtime Secrets with synced values.
 
+The `--operator-secret-sync-runner-image` phase reads
+`operator-secret-sync-runner-candidate` from `dependencies.lock.json` and
+validates the candidate with a temporary Kubernetes Job in the
+`operator-secret-sync` namespace. The validation uses k3s/Kubernetes/containerd
+execution, not Docker. It does not use the real
+`operator-plane-secret-sync` ServiceAccount, does not mount Kubernetes Secrets,
+does not call OpenBao, does not run the real sync Job, and deletes the
+temporary validation workload on success or failure.
+
+The validation workload is unprivileged, disables ServiceAccount token
+automount, drops Linux capabilities, and uses a read-only root filesystem. It
+does not force `runAsNonRoot` for v1 because the standard candidate image may
+not declare a non-root user.
+
+The validation-only phase does not require the candidate digest yet. The real
+sync Job does require a reviewed `sha256` digest in `dependencies.lock.json`
+and a Job image reference that uses that digest.
+
 ## Current TODO Phases
 
 Future work:
@@ -167,8 +186,29 @@ Preview the operator-secret-sync phase:
 sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-foundation --dry-run
 ```
 
+Preview the runner image validation phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-runner-image --dry-run
+```
+
+Run the validation phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-runner-image
+```
+
+Resolve the candidate digest through k3s/containerd tooling:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/resolve-image-digest.sh --image 'docker.io/alpine/k8s:1.35.4'
+```
+
+After review, manually copy the selected `sha256` digest into
+`dependencies.lock.json`. The helper does not edit repository files.
+
 The full `--operator-secret-sync` Job/run phase remains intentionally blocked
-until a pinned standard runner image is selected.
+until a digest-pinned standard runner image is selected.
 
 Preview the Operator PKI phase:
 
@@ -244,16 +284,16 @@ one-shot Job as an explicit step.
 
 The candidate `docker.io/alpine/k8s:1.35.4` is tracked in
 `dependencies.lock.json`. It remains a candidate until the future Job/run phase
-selects and applies a pinned runner image.
+selects and applies a digest-pinned runner image.
 
 Validate a candidate runner image with:
 
 ```bash
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>' --dry-run
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/check-runner-image-contract.sh --image '<pinned-image-ref>'
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/validate-runner-image-contract.sh --dry-run
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-runner-image
 ```
 
-The runner image must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `openssl passwd -apr1` support, and CA certificates. Future vulnerability management means updating the pinned image reference and rerunning the contract check; changing sync logic updates the script and generated ConfigMap, not the image.
+The runner image must provide `bash`, `curl`, `jq`, `kubectl`, `openssl`, `openssl passwd -apr1` support, and CA certificates. No custom image is created for v1, and the pod must not install packages at runtime. Future vulnerability management means updating the pinned image reference and rerunning the Kubernetes contract check; changing sync logic updates the script and generated ConfigMap, not the image.
 
 Verify the dependency lock without touching live state:
 

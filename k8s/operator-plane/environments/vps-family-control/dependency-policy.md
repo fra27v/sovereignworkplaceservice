@@ -30,6 +30,12 @@ requires a separate explicit phase.
 
 Real Job execution requires digest pinning.
 
+The operator-secret-sync runner candidate is read from
+`dependencies.lock.json` and validated through the explicit
+`--operator-secret-sync-runner-image` bootstrap phase. That validation uses a
+temporary Kubernetes workload on the k3s/containerd runtime path. Docker-based
+runner checks are deprecated and are not authoritative.
+
 Do not invent digests. Add a digest only after it is obtained from a trusted
 registry or release source during an update phase.
 
@@ -49,7 +55,9 @@ Job template that consumes the image. Future update phases apply those manifest
 changes to the cluster.
 
 Validate-then-enable-Job dependencies, such as the future operator-secret-sync
-runner image, must be validated before Job execution.
+runner image, must be validated before Job execution. The validation phase does
+not run the real sync Job, does not mount Secrets, and does not mutate target
+runtime Secrets. It confirms only the no-secret runner image contract.
 
 Custom images require an explicit ADR before introduction. The ADR must explain
 why a pinned standard image is insufficient, where the image is built, how it is
@@ -65,3 +73,10 @@ Run:
 
 The verifier is static. It does not mutate Kubernetes state, pull images, run
 Jobs, or read secrets.
+
+The global verifier does not pull runner images or create validation Jobs. Run
+the active runner image validation only through:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-runner-image
+```

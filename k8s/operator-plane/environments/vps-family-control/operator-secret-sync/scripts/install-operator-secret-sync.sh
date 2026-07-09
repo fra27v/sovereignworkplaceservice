@@ -3,11 +3,14 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 sync_dir="$(cd -- "${script_dir}/.." && pwd)"
+env_dir="$(cd -- "${sync_dir}/.." && pwd)"
 namespace="operator-secret-sync"
 job_name="operator-plane-secret-sync"
 configmap_name="operator-plane-secret-sync-script"
 sync_script="${sync_dir}/scripts/sync-operator-plane-secrets.sh"
 job_manifest="${sync_dir}/job.yaml"
+lock_file="${env_dir}/dependencies.lock.json"
+runtime_image_id="operator-secret-sync-runner-candidate"
 ca_configmap_name="openbao-ca-bundle"
 ca_configmap_key="ca.crt"
 dry_run="false"
@@ -70,6 +73,8 @@ apply_sync_script_configmap() {
 preflight_runner_image() {
   local image_ref
   local image_last_component
+  local locked_image_ref
+  local locked_digest
 
   image_ref="$(awk '
     $1 == "image:" {
@@ -95,6 +100,22 @@ preflight_runner_image() {
   image_last_component="${image_ref##*/}"
   if [[ "${image_ref}" != *@sha256:* && "${image_last_component}" != *:* ]]; then
     fail "Runner image must be pinned by tag or digest: ${image_ref}"
+  fi
+
+  locked_image_ref="$(jq -er --arg id "${runtime_image_id}" '.runtimeImages[] | select(.id == $id) | .image' "${lock_file}")" \
+    || fail "Runtime image entry not found in lock: ${runtime_image_id}"
+  locked_digest="$(jq -r --arg id "${runtime_image_id}" '.runtimeImages[] | select(.id == $id) | .digest // empty' "${lock_file}")"
+
+  if [[ "${dry_run}" = "true" && ! "${locked_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "DRY-RUN: runner image digest is not pinned in ${lock_file}; real install would fail before applying resources"
+    return 0
+  fi
+
+  [[ "${locked_digest}" =~ ^sha256:[0-9a-f]{64}$ ]] \
+    || fail "Runner image digest must be pinned in ${lock_file} before running the real sync Job."
+
+  if [[ "${image_ref}" != "${locked_image_ref}@${locked_digest}" && "${image_ref}" != *@${locked_digest} ]]; then
+    fail "Runner image in job.yaml must use the reviewed dependency-lock digest before real Job execution."
   fi
 }
 
@@ -132,11 +153,11 @@ require_command awk
 require_command grep
 require_command jq
 
+preflight_runner_image
 apply_file "${sync_dir}/namespace.yaml"
 apply_file "${sync_dir}/serviceaccount.yaml"
 apply_file "${sync_dir}/rbac.yaml"
 apply_sync_script_configmap
-preflight_runner_image
 preflight_openbao_ca_bundle
 
 if [[ "${dry_run}" = "true" ]]; then
