@@ -77,6 +77,31 @@ artifacts_json="${tmp_dir}/operator-artifacts.json"
 read_kv "${traefik_path}" "${traefik_json}"
 read_kv "${artifacts_path}" "${artifacts_json}"
 
+require_non_empty_key() {
+  local json_file="$1"
+  local logical_path="$2"
+  local key="$3"
+
+  if jq -e --arg key "${key}" '((. // {})[$key] // "") != ""' "${json_file}" >/dev/null; then
+    echo "OpenBao KV key ${key} is present and non-empty at ${BAO_KV_MOUNT}/${logical_path}"
+  else
+    fail "OpenBao KV key ${key} is missing or empty at ${BAO_KV_MOUNT}/${logical_path}"
+  fi
+}
+
+require_non_empty_key "${traefik_json}" "${traefik_path}" OVH_ENDPOINT
+require_non_empty_key "${traefik_json}" "${traefik_path}" OVH_APPLICATION_KEY
+require_non_empty_key "${traefik_json}" "${traefik_path}" OVH_APPLICATION_SECRET
+require_non_empty_key "${traefik_json}" "${traefik_path}" OVH_CONSUMER_KEY
+
+if ! jq -e '(.users // "") != ""' "${artifacts_json}" >/dev/null; then
+  if jq -e 'has("username") or has("token")' "${artifacts_json}" >/dev/null; then
+    fail "operator-artifacts BasicAuth KV must contain final key users; runtime hash generation is no longer supported."
+  fi
+  fail "operator-artifacts BasicAuth KV key users is missing or empty."
+fi
+echo "OpenBao KV key users is present and non-empty at ${BAO_KV_MOUNT}/${artifacts_path}"
+
 traefik_env="${tmp_dir}/traefik.env"
 jq -r '
   [
@@ -89,9 +114,6 @@ jq -r '
 chmod 0600 "${traefik_env}"
 
 users_file="${tmp_dir}/users"
-if ! jq -e '(.users // "") != ""' "${artifacts_json}" >/dev/null; then
-  fail "operator-artifacts users is missing from OpenBao KV. Precompute the BasicAuth htpasswd users value and import it into OpenBao before running sync."
-fi
 jq -r '.users' "${artifacts_json}" > "${users_file}"
 chmod 0600 "${users_file}"
 

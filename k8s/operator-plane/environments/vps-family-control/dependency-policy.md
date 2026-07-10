@@ -35,9 +35,8 @@ The operator-secret-sync runner candidate is read from
 `--operator-secret-sync-runner-image` bootstrap phase. That validation uses a
 temporary Kubernetes workload on the k3s/containerd runtime path. Docker-based
 runner checks are deprecated and are not authoritative.
-The selected runner candidate is digest-pinned in the lock, but the real sync
-Job remains disabled until the Job manifest is updated to use the validated tag
-plus digest.
+The selected runner candidate is digest-pinned in the lock. The real sync Job
+installer resolves that entry and renders the Job image as tag plus digest.
 
 Do not invent digests. Add a digest only after it is obtained from a trusted
 registry or release source during an update phase.
@@ -57,15 +56,16 @@ Repository-managed images are updated by changing the lock plus the manifest or
 Job template that consumes the image. Future update phases apply those manifest
 changes to the cluster.
 
-Validate-then-enable-Job dependencies, such as the future operator-secret-sync
-runner image, must be validated before Job execution. The validation phase does
+Validate-then-enable-Job dependencies, such as the operator-secret-sync runner
+image, must be validated before Job execution. The validation phase does
 not run the real sync Job, does not mount Secrets, and does not mutate target
 runtime Secrets. It confirms only the no-secret runner image contract.
 
 The operator-secret-sync runner contract intentionally excludes `openssl`.
 BasicAuth hash generation is prepared by host/bootstrap/import tooling before
 sync. OpenBao KV stores the final `users` value, and the sync Job copies that
-value into Kubernetes without generating hashes at runtime.
+value into Kubernetes without generating hashes at runtime. Legacy `username`
+and `token` fields are not sufficient for the real Job.
 
 Custom images require an explicit ADR before introduction. The ADR must explain
 why a pinned standard image is insufficient, where the image is built, how it is

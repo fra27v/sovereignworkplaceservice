@@ -26,7 +26,7 @@ one-shot sync Job and without selecting a runner image.
 
 The foundation includes namespace, ServiceAccount, least-privilege RBAC, the
 sync script ConfigMap, the public OpenBao CA bundle ConfigMap, and Global
-OpenBao Kubernetes auth configuration for the future Job.
+OpenBao Kubernetes auth configuration for the explicit real Job.
 
 Options:
   --env-file <path>  Path to operator-plane.env.
@@ -85,7 +85,7 @@ DRY-RUN: would apply Kubernetes foundation resources:
 RBAC tradeoff:
   The foundation grants get/update/patch only for the expected Secret names.
   It intentionally does not grant create because Kubernetes RBAC cannot combine
-  create with resourceNames safely. The future Job phase must ensure target
+  create with resourceNames safely. The real Job phase must ensure target
   Secrets exist first or intentionally revise RBAC with a documented create path.
 PLAN
     return 0

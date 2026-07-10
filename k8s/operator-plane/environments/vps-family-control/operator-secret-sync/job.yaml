@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: sync
-          image: REPLACE-WITH-PINNED-STANDARD-RUNNER-IMAGE:0.0.0
+          image: docker.io/alpine/k8s:1.35.4@sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04
           imagePullPolicy: IfNotPresent
           command:
             - bash

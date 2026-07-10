@@ -18,8 +18,8 @@ The verification script `scripts/verify-openbao-ca-bundle-configmap.sh` confirms
 
 ## Foundation Phase
 
-The target foundation phase prepares the resources the future one-shot Job will
-need without creating or running that Job:
+The foundation phase prepares the resources the one-shot Job needs without
+creating or running that Job:
 
 - Namespace: `operator-secret-sync`
 - ServiceAccount: `operator-secret-sync/operator-plane-secret-sync`
@@ -36,9 +36,9 @@ run the sync Job.
 
 The foundation RBAC grants `get`, `update`, and `patch` only for the expected
 Secret names. It intentionally does not grant `create` because Kubernetes RBAC
-cannot safely restrict `create` by `resourceNames`. The future Job/run phase
-must either pre-create the target Secrets or deliberately revise that RBAC with
-a documented create tradeoff.
+cannot safely restrict `create` by `resourceNames`. The real Job preflight
+therefore requires the target Secrets to already exist unless RBAC has been
+intentionally revised to grant create.
 
 ## Why A Job
 
@@ -56,7 +56,7 @@ The Job uses:
 - OpenBao role: `operator-plane-secret-sync`
 - OpenBao policy: `operator-plane-secret-sync`
 
-The future Job uses the same ServiceAccount. In the foundation stage, that
+The real Job uses the same ServiceAccount. In the foundation stage, that
 ServiceAccount is bound only to namespace-scoped Roles that can get, update,
 and patch the expected Secret names in:
 
@@ -65,8 +65,8 @@ and patch the expected Secret names in:
 
 The sync namespace manifest also ensures the `operator-artifacts` namespace exists because the `--all` bootstrap order configures secret sync before the operator-artifacts workload is installed. It has no access to unrelated namespaces and does not touch `trading`.
 
-The full Job stage must remain explicit until the runner image and Secret
-creation/update behavior are finalized.
+The real Job stage remains explicit and runs only through
+`--operator-secret-sync-job` or `scripts/install-operator-secret-sync-job.sh`.
 
 ## Secret Projections
 
@@ -85,6 +85,48 @@ content in the field `users`. The sync Job copies that value verbatim into the
 Kubernetes Secret key `users`. It does not derive a hash from `username` and
 `token` inside the pod.
 
+## Real Job Phase
+
+The real sync Job uses the runner image resolved from
+`../dependencies.lock.json` entry
+`runtimeImages[].id == "operator-secret-sync-runner-candidate"`. The effective
+image format is tag plus digest:
+
+```text
+docker.io/alpine/k8s:1.35.4@sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04
+```
+
+Run the safe preflight before the real Job:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/preflight-operator-secret-sync.sh
+```
+
+The preflight verifies the digest-pinned runner image, namespace,
+ServiceAccount, ConfigMaps, RBAC for target Secrets, OpenBao Kubernetes auth
+metadata, and required OpenBao KV paths and keys. It prints only safe metadata:
+path checked, key present or missing, non-empty yes/no, and runner digest
+presence. It does not print Secret data, tokens, PEM contents, htpasswd
+contents, hashes, plaintext, ciphertext, or issuance JSON.
+
+Run the explicit Job phase:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-job.sh --dry-run
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-job.sh --wait
+```
+
+Through the orchestrator:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-job --dry-run
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-job
+```
+
+If a completed Job with the same name already exists, use
+`--replace-completed` on the installer to delete and recreate it explicitly.
+The bootstrap wrapper does not replace completed Jobs automatically.
+
 ## Runner Image Contract
 
 No custom image is created at this stage and no image registry is introduced at this stage.
@@ -96,21 +138,19 @@ intent:
 ../dependencies.lock.json
 ```
 
-The Job must use a pinned standard runner image that satisfies
+The Job uses a pinned standard runner image that satisfies
 `image-contract.md`. The `latest` tag is forbidden, and digest pinning is
 required before the real sync Job can run.
 
 The current runner image candidate is recorded in the dependency lock as
 `docker.io/alpine/k8s:1.35.4` with digest
 `sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04`.
-It is validated and digest-pinned in the dependency lock, but it is still a
-candidate for the real Job. `job.yaml` intentionally uses an invalid
-placeholder image reference, and the install script fails before applying the
-Job until the manifest is updated through a future explicit phase. Future Job
-execution must use the tag plus digest form.
+It is validated and digest-pinned in the dependency lock. The installer still
+resolves the effective image from the lock at runtime and renders the Job with
+the tag plus digest form, so the lock remains authoritative.
 
-Validate the candidate from `dependencies.lock.json` through Kubernetes before
-enabling the real Job:
+Validate the candidate from `dependencies.lock.json` through Kubernetes after
+changing the candidate image or digest:
 
 ```bash
 ./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/validate-runner-image-contract.sh --dry-run
@@ -163,13 +203,14 @@ Resolve a digest through the target k3s/containerd tooling:
 Review the RepoDigest candidate, then manually copy the selected `sha256`
 digest into `dependencies.lock.json`. The helper does not edit repository
 files. The selected candidate is currently digest-pinned in the lock, but the
-real sync Job is still not enabled. The older `check-runner-image-contract.sh`
-Docker path is deprecated and non-authoritative.
+real sync Job still runs only through the explicit preflighted Job phase. The
+older `check-runner-image-contract.sh` Docker path is deprecated and
+non-authoritative.
 
 Future vulnerability management means selecting an updated pinned image reference, rerunning the contract check, updating `job.yaml`, and reapplying the Job through the normal install flow. It does not require changing the sync script unless the tool contract changes.
 
 Changing runtime images starts by changing `../dependencies.lock.json`.
-Applying that change to Kubernetes is a separate future update phase. k3s
+Applying that change to Kubernetes is a separate explicit update phase. k3s
 managed dependencies and Helm-managed dependencies have their own update flows;
 the operator-secret-sync runner image is repository-managed through the Job
 manifest. The runner image uses the validate-then-enable-Job flow and requires
@@ -212,20 +253,23 @@ Install and verify the foundation:
 ./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-operator-secret-sync-foundation.sh
 ```
 
-The broad verifier distinguishes foundation from future Job/run work:
+The broad verifier distinguishes foundation, optional Job/run state, and target
+Secret key-name checks:
 
 ```bash
 ./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/verify-operator-secret-sync.sh
 ```
 
-Use the full Job installer only after choosing a pinned standard runner image:
+Use the real Job installer only after preflight passes:
 
 ```bash
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync.sh --dry-run
-./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync.sh
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/preflight-operator-secret-sync.sh
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-job.sh --dry-run
+./k8s/operator-plane/environments/vps-family-control/operator-secret-sync/scripts/install-operator-secret-sync-job.sh --wait
 ```
 
-The install script does not run destructive cleanup. It only deletes an old Job with the exact same name before reapplying the Job, because Kubernetes Job pod templates are immutable.
+The install script does not run destructive cleanup. It refuses to replace an
+existing Job unless it completed and `--replace-completed` is supplied.
 
 No real secrets are stored in Git. Scripts must not print Kubernetes Secret
 data, OpenBao tokens, private keys, certificate PEM contents, ciphertext,

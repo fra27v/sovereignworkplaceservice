@@ -70,6 +70,7 @@ The bootstrap entrypoint currently supports:
 - OpenBao CA bundle projection into operator-secret-sync namespace
 - operator-secret-sync foundation without running the sync Job
 - operator-secret-sync runner image validation without running the sync Job
+- explicit operator-secret-sync real Job phase with `--operator-secret-sync-job`
 - `operator-artifacts`
 - Operator PKI configure and verify
 - explicit `operator-vault` runtime TLS issuance and install with `--operator-vault-tls`
@@ -79,7 +80,7 @@ Global OpenBao install, initialization, transit setup, and audit setup remain de
 k3s-managed dependencies are updated through the k3s platform flow.
 Helm-managed dependencies, including Global OpenBao, are updated through their
 Helm release flow. Repository-managed images, including operator-artifacts and
-the future operator-secret-sync runner, are updated by changing the dependency
+the operator-secret-sync runner, are updated by changing the dependency
 lock and the consuming manifest together. Custom images require an explicit ADR
 before introduction.
 
@@ -154,9 +155,15 @@ does not force `runAsNonRoot` for v1 because the standard candidate image may
 not declare a non-root user.
 
 The validation-only phase can run before the candidate digest is known. The
-selected runner image is now digest-pinned in `dependencies.lock.json`. The
-real sync Job is still not enabled, and future Job execution must use the
-validated tag plus digest in the Job image reference.
+selected runner image is digest-pinned in `dependencies.lock.json`. The real
+sync Job is enabled only by the explicit `--operator-secret-sync-job` phase,
+and execution uses the validated tag plus digest in the Job image reference.
+
+The real Job preflight checks the digest-pinned runner image, foundation
+resources, RBAC for target Secrets, OpenBao Kubernetes auth metadata, and the
+required OpenBao KV paths and keys. It prints only safe metadata and never
+prints Secret data, OpenBao tokens, PEM contents, htpasswd contents, generated
+hashes, plaintext, ciphertext, or issuance JSON.
 
 ## Current TODO Phases
 
@@ -208,8 +215,17 @@ sudo ./k8s/operator-plane/environments/vps-family-control/scripts/resolve-image-
 After review, manually copy the selected `sha256` digest into
 `dependencies.lock.json`. The helper does not edit repository files.
 
-The full `--operator-secret-sync` Job/run phase remains intentionally blocked
-until a digest-pinned standard runner image is selected.
+Preview the explicit real sync Job phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-job --dry-run
+```
+
+Run the explicit real sync Job phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-job
+```
 
 Preview the Operator PKI phase:
 
@@ -277,17 +293,18 @@ without creating static tokens and binds only the
 
 The sync script remains a normal versioned repository file. The install script generates and applies the runtime ConfigMap from that script, so changing sync logic does not require rebuilding an image.
 
-No custom sync image is created at this stage and no registry is introduced at this stage. The Job must use a pinned standard runner image satisfying `operator-secret-sync/image-contract.md`. The runner image is not selected yet, and real install fails before applying the Job until one is selected.
+No custom sync image is created at this stage and no registry is introduced at
+this stage. The Job uses the pinned standard runner image from
+`dependencies.lock.json` in tag plus digest form.
 
 The foundation phase does not choose, validate, pull, or run the runner image.
-The future Job/run phase will choose a pinned standard runner image and run the
-one-shot Job as an explicit step.
+The real Job phase runs the one-shot Job only as an explicit step.
 
 The candidate `docker.io/alpine/k8s:1.35.4` is tracked in
 `dependencies.lock.json` with digest
 `sha256:d9aeef2665287b9918bc57c539ba95382ba4c8d52c8b1310df5666a89d9a3d04`.
-It remains a candidate until the future Job/run phase updates `job.yaml` to use
-the validated tag plus digest and applies the real sync Job.
+The installer resolves this lock entry and renders the real Job image as tag
+plus digest.
 
 Validate a candidate runner image with:
 
@@ -299,10 +316,12 @@ Validate a candidate runner image with:
 The runner image must provide `bash`, `curl`, `jq`, `kubectl`, and CA
 certificates. It does not require the `openssl` CLI. BasicAuth hash generation
 is not performed in the sync Job. OpenBao KV stores the final
-operator-artifacts BasicAuth `users` value, and the future sync Job copies that
-value verbatim into Kubernetes Secret key `users`. Host/bootstrap/import
-tooling may prepare the htpasswd value outside the runner, but no real secret
-values are stored in Git or printed. No custom image is created for v1, and the
+operator-artifacts BasicAuth `users` value, and the sync Job copies that value
+verbatim into Kubernetes Secret key `users`. Host/bootstrap/import tooling may
+prepare the htpasswd value outside the runner, but the OpenBao KV path must
+contain the final `users` key before the real Job runs. Legacy `username` and
+`token` fields are not sufficient. No real secret values are stored in Git or
+printed. No custom image is created for v1, and the
 pod must not install packages at runtime. Future vulnerability management means
 updating the pinned image reference and rerunning the Kubernetes contract
 check; changing sync logic updates the script and generated ConfigMap, not the

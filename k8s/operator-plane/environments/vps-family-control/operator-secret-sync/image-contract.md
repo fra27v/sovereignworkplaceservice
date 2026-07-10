@@ -37,7 +37,8 @@ the Kubernetes Secret key `users`.
 
 ## Selection State
 
-The runner image is not selected yet. `job.yaml` intentionally contains an invalid placeholder image reference so install preflight fails before execution.
+The runner image is selected from `dependencies.lock.json` and must be rendered
+as tag plus digest for the real Job.
 
 The candidate is read from:
 
@@ -45,9 +46,9 @@ The candidate is read from:
 ../dependencies.lock.json
 ```
 
-Before running the sync Job, validate the candidate, copy the reviewed
-`sha256` digest into `dependencies.lock.json`, and update `job.yaml` to use the
-reviewed digest.
+Before running the sync Job after an image change, validate the candidate and
+copy the reviewed `sha256` digest into `dependencies.lock.json`. The real Job
+installer resolves that lock entry and renders the reviewed digest.
 
 Validate the candidate without secrets:
 
