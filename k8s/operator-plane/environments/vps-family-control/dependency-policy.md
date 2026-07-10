@@ -63,9 +63,11 @@ runtime Secrets. It confirms only the no-secret runner image contract.
 
 The operator-secret-sync runner contract intentionally excludes `openssl`.
 BasicAuth hash generation is prepared by host/bootstrap/import tooling before
-sync. OpenBao KV stores the final `users` value, and the sync Job copies that
-value into Kubernetes without generating hashes at runtime. Legacy `username`
-and `token` fields are not sufficient for the real Job.
+sync. The bootstrap import script may use host `openssl passwd -apr1 -stdin`
+with the token supplied through stdin. OpenBao KV stores the final `users`
+value, and the sync Job copies that value into Kubernetes without generating
+hashes at runtime. Legacy `username` and `token` fields are import material
+only and are not sufficient for the real Job.
 
 Custom images require an explicit ADR before introduction. The ADR must explain
 why a pinned standard image is insufficient, where the image is built, how it is

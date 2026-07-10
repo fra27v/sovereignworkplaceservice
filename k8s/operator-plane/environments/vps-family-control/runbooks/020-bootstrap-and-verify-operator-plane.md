@@ -315,12 +315,14 @@ Validate a candidate runner image with:
 
 The runner image must provide `bash`, `curl`, `jq`, `kubectl`, and CA
 certificates. It does not require the `openssl` CLI. BasicAuth hash generation
-is not performed in the sync Job. OpenBao KV stores the final
-operator-artifacts BasicAuth `users` value, and the sync Job copies that value
-verbatim into Kubernetes Secret key `users`. Host/bootstrap/import tooling may
-prepare the htpasswd value outside the runner, but the OpenBao KV path must
-contain the final `users` key before the real Job runs. Legacy `username` and
-`token` fields are not sufficient. No real secret values are stored in Git or
+is not performed in the sync Job. The bootstrap import env may contain
+operator-artifacts username/token as local import inputs only; the import
+script may use host `openssl passwd -apr1 -stdin` to derive the final
+htpasswd-compatible `users` line. OpenBao KV stores only the final
+operator-artifacts BasicAuth `users` value for the runtime projection, and the
+sync Job copies that value verbatim into Kubernetes Secret key `users`.
+Username/token are not written to the operator-artifacts runtime KV path. No
+generated hashes, `users` contents, or real secret values are stored in Git or
 printed. No custom image is created for v1, and the
 pod must not install packages at runtime. Future vulnerability management means
 updating the pinned image reference and rerunning the Kubernetes contract

@@ -83,7 +83,9 @@ It creates or updates:
 For `operator-artifacts`, OpenBao KV stores the final BasicAuth htpasswd
 content in the field `users`. The sync Job copies that value verbatim into the
 Kubernetes Secret key `users`. It does not derive a hash from `username` and
-`token` inside the pod.
+`token` inside the pod. The bootstrap import env may contain username/token as
+local import inputs only; the import script derives `users` on the host and
+does not write username/token to the operator-artifacts runtime KV path.
 
 ## Real Job Phase
 
@@ -177,9 +179,10 @@ That image must provide:
 - CA certificates
 
 The runner does not require the `openssl` CLI. BasicAuth hash generation is not
-performed in the sync Job. Host/bootstrap/import tooling may prepare the
-htpasswd `users` value outside the runner and import it into OpenBao KV before
-the sync Job runs.
+performed in the sync Job. The bootstrap import script may use host
+`openssl passwd -apr1 -stdin` to derive the htpasswd-compatible `users` line
+outside the runner and import only that final key into OpenBao KV before the
+sync Job runs. It must not print the generated hash or `users` contents.
 
 The image must not install packages or download binaries at pod startup.
 Updating the runner image is a separate operational step. No custom image is
@@ -222,6 +225,9 @@ Introducing a custom runner image requires an explicit ADR.
 The OpenBao bootstrap import script uses a strict parser for `operator-plane.bootstrap-secrets.env`. It does not `source` the env file and does not execute shell syntax from it.
 
 The parser accepts only blank lines, full-line comments, and `KEY=VALUE` entries for known required keys. It rejects duplicate keys, unknown keys, `export KEY=VALUE`, command substitution, backticks, multiline values, missing required keys, and empty required values.
+The operator-artifacts username/token fields in that file are local import
+inputs. OpenBao runtime KV stores final `users`; username/token are not written
+to the runtime KV path.
 
 ## OpenBao TLS
 
