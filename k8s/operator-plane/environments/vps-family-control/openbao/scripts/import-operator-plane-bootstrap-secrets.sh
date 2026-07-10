@@ -5,7 +5,9 @@ umask 077
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/../.." && pwd)"
 parser_lib="${script_dir}/lib/bootstrap-secrets-parser.sh"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 
+operator_env_file="${env_dir}/operator-plane.env"
 env_file="${env_dir}/operator-plane.bootstrap-secrets.env"
 dry_run="false"
 overwrite="false"
@@ -17,13 +19,17 @@ artifacts_config_path="operator-plane/operator-artifacts/family-infra-01-config"
 
 usage() {
   cat <<EOF
-Usage: $0 [--env-file <path>] [--dry-run] [--overwrite]
+Usage: $0 [--env-file <path>] [--operator-env-file <path>] [--dry-run] [--overwrite]
 
 Import local vps-family-control bootstrap secret material into Global OpenBao KV.
 
 Options:
   --env-file <path>  Env file to import. Defaults to:
                      ${env_file}
+  --operator-env-file <path>
+                     Central operator-plane.env file for non-secret runtime config.
+                     Defaults to:
+                     ${operator_env_file}
   --dry-run          Print target paths, key names, and existence only.
   --overwrite        Allow replacing existing OpenBao KV paths.
   --help             Show this help.
@@ -35,6 +41,8 @@ Safety:
   - The env file is bootstrap/import/recovery material only.
   - operator-artifacts username/token are local import inputs only; OpenBao
     runtime KV stores the final users key.
+  - operator-artifacts hostname and allowed source ranges are read from
+    operator-plane.env, not from the bootstrap secrets file.
 EOF
 }
 
@@ -126,6 +134,11 @@ while [[ "$#" -gt 0 ]]; do
       env_file="$2"
       shift
       ;;
+    --operator-env-file)
+      [[ "$#" -ge 2 ]] || fail "Missing value for --operator-env-file."
+      operator_env_file="$2"
+      shift
+      ;;
     --dry-run)
       dry_run="true"
       ;;
@@ -151,18 +164,31 @@ fi
 
 [[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
 [[ -s "${parser_lib}" ]] || fail "Missing parser library: ${parser_lib}"
+[[ -f "${operator_env_file}" ]] || fail "Missing central operator-plane env file: ${operator_env_file}"
+[[ -s "${env_loader}" ]] || fail "Missing operator-plane env loader: ${env_loader}"
 
 if [[ "${dry_run}" != "true" ]]; then
   mode="$(file_mode "${env_file}")"
   is_mode_private "${mode}" || fail "Env file permissions are too open (${mode}); expected 0600 or stricter: ${env_file}"
+  operator_mode="$(file_mode "${operator_env_file}")"
+  is_mode_private "${operator_mode}" || fail "Operator env file permissions are too open (${operator_mode}); expected 0600 or stricter: ${operator_env_file}"
 fi
 
 # shellcheck source=lib/bootstrap-secrets-parser.sh
 source "${parser_lib}"
 parse_bootstrap_secrets_file "${env_file}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
+if [[ "${dry_run}" = "true" ]]; then
+  load_operator_plane_env "${operator_env_file}" "false" OPERATOR_DOMAIN OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
+else
+  load_operator_plane_env "${operator_env_file}" "true" OPERATOR_DOMAIN OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
+fi
+OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME="operator-artifacts.${OPERATOR_DOMAIN}"
 
 if [[ "${dry_run}" = "true" ]]; then
   echo "Env file: ${env_file}"
+  echo "Central operator env file: ${operator_env_file}"
   echo "Accepted key names:"
   printf '  - %s\n' "${BOOTSTRAP_SECRET_ACCEPTED_KEYS[@]}"
   print_target "Traefik OVH DNS-01" "${traefik_path}" \
@@ -197,8 +223,8 @@ export OVH_ENDPOINT="${BOOTSTRAP_SECRETS[OVH_ENDPOINT]}"
 export OVH_APPLICATION_KEY="${BOOTSTRAP_SECRETS[OVH_APPLICATION_KEY]}"
 export OVH_APPLICATION_SECRET="${BOOTSTRAP_SECRETS[OVH_APPLICATION_SECRET]}"
 export OVH_CONSUMER_KEY="${BOOTSTRAP_SECRETS[OVH_CONSUMER_KEY]}"
-export OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME]}"
-export OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES]}"
+export OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME
+export OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
 
 jq -n '{
   OVH_ENDPOINT: env.OVH_ENDPOINT,

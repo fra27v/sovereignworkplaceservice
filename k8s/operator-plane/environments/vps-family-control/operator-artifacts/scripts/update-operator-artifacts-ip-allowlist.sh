@@ -2,8 +2,9 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-env_file="${script_dir}/../operator-artifacts.env"
-env_template="${script_dir}/../operator-artifacts.env.example"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
 install_script="${script_dir}/install-operator-artifacts.sh"
 verify_script="${script_dir}/verify-operator-artifacts.sh"
 
@@ -24,6 +25,7 @@ Usage: update-operator-artifacts-ip-allowlist.sh [options]
 Options:
   --home-ip <ipv4-or-cidr>              Replace the non-loopback home allowlist entry.
   --set-ranges <comma-separated-cidrs>  Replace the full allowlist.
+  --env-file <path>                     Path to central operator-plane.env.
   --dry-run                            Show safe planned actions only.
   --show-masked                        Print current/proposed ranges with IPs masked.
   --help                               Show this help.
@@ -35,21 +37,6 @@ Examples:
 
 Do not paste real public IPs, tokens, htpasswd contents, Secret data, or rendered manifests into chat, logs, tickets, or Git.
 USAGE
-}
-
-missing_env_file() {
-  cat >&2 <<EOF
-Missing operator artifacts environment file:
-  ${env_file}
-
-Create it from the template:
-  cp ${env_template} ${env_file}
-
-Then edit all required placeholder values before rerunning this script.
-
-The real operator-artifacts.env file is intentionally gitignored and must not be committed.
-EOF
-  exit 1
 }
 
 normalize_ranges() {
@@ -156,6 +143,11 @@ update_env_file() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || fail "--env-file requires a path."
+      env_file="$2"
+      shift 2
+      ;;
     --home-ip)
       [[ $# -ge 2 ]] || fail "--home-ip requires a value."
       home_ip="$2"
@@ -184,7 +176,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -f "${env_file}" ]] || missing_env_file
+[[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
+[[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
 
 if [[ -n "${home_ip}" && -n "${set_ranges}" ]]; then
   fail "Use either --home-ip or --set-ranges, not both."
@@ -194,8 +187,9 @@ if [[ -z "${home_ip}" && -z "${set_ranges}" ]]; then
   fail "Specify --home-ip or --set-ranges."
 fi
 
-# shellcheck source=/dev/null
-source "${env_file}"
+# shellcheck source=lib/load-operator-artifacts-config.sh
+source "${env_helper}"
+load_operator_artifacts_env "${env_file}" "true"
 
 current_ranges="$(normalize_ranges "${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES:-}")"
 validate_ranges "${current_ranges}"
@@ -222,9 +216,9 @@ if [[ "${dry_run}" = "true" ]]; then
 else
   update_env_file "${proposed_ranges}"
   echo "Applying operator-artifacts deployment with updated allowlist."
-  "${install_script}"
+  "${install_script}" --env-file "${env_file}"
   echo "Verifying operator-artifacts deployment after allowlist update."
-  "${verify_script}"
+  "${verify_script}" --env-file "${env_file}"
 fi
 
 cat <<'EOF'

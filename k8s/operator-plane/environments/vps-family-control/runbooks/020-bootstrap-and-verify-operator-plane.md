@@ -37,11 +37,11 @@ single normal operational env file for this environment. Create it from
 `operator-plane.env.example`, keep it ignored by Git, and set permissions to
 `0600`.
 
-Do not create component-specific real env files for Operator PKI.
-Component-specific `.env.example` files are reference-only. Avoid duplicated
-values across variables: derive public service hostnames from the central base
-domain and derive internal DNS names from service, namespace, and cluster DNS
-suffix values.
+Do not create component-specific real env files for operator-plane components.
+`operator-artifacts.env` is not used as an operational source. Avoid
+duplicated values across variables: derive public service hostnames from the
+central base domain and derive internal DNS names from service, namespace, and
+cluster DNS suffix values.
 
 `dependencies.lock.json` is the authoritative machine-readable source of truth for
 environment runtime dependency intent. It records k3s-managed components,
@@ -284,6 +284,11 @@ Kubernetes Secrets are runtime projections or bootstrap imports. Local env files
 are bootstrap, import, recovery, or central non-secret/sensitive operational
 configuration only. `operator-plane.env` is the single normal operational env
 file.
+
+operator-artifacts operational configuration is centralized in
+`operator-plane.env`. `OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES` lives there,
+the public hostname is derived as `operator-artifacts.${OPERATOR_DOMAIN}`, and
+the BasicAuth username is derived from `OPERATOR_ARTIFACTS_TENANT_NAME`.
 
 The in-cluster sync Job authenticates to OpenBao with Kubernetes auth through the `operator-plane-secret-sync` ServiceAccount and role. It does not use a static OpenBao token.
 

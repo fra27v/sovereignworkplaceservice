@@ -24,8 +24,6 @@ OVH_APPLICATION_SECRET=placeholder-application-secret
 OVH_CONSUMER_KEY=placeholder-consumer-key
 OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME=placeholder-user
 OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN=placeholder-token
-OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME=placeholder-hostname
-OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES=placeholder-ranges
 EOF
 }
 
@@ -71,6 +69,11 @@ derived_users_file="${tmp_dir}/derived-users.env"
 write_valid_file "${derived_users_file}"
 printf '%s\n' 'OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERS=placeholder-users-line' >> "${derived_users_file}"
 expect_failure "derived users key rejection" "${derived_users_file}"
+
+runtime_config_file="${tmp_dir}/runtime-config.env"
+write_valid_file "${runtime_config_file}"
+printf '%s\n' 'OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES=placeholder-ranges' >> "${runtime_config_file}"
+expect_failure "runtime config key rejection" "${runtime_config_file}"
 
 export_file="${tmp_dir}/export.env"
 write_valid_file "${export_file}"

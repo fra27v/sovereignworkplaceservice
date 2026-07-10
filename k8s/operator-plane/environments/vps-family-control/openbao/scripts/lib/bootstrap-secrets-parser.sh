@@ -7,8 +7,6 @@ bootstrap_secret_allowed_keys=(
   OVH_CONSUMER_KEY
   OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME
   OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN
-  OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME
-  OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
 )
 
 bootstrap_secret_required_keys=("${bootstrap_secret_allowed_keys[@]}")

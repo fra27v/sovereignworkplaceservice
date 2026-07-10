@@ -3,9 +3,10 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
+env_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control"
 artifacts_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control/operator-artifacts"
-env_file="${artifacts_dir}/operator-artifacts.env"
-env_template="${artifacts_dir}/operator-artifacts.env.example"
+env_file="${env_dir}/operator-plane.env"
+env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
 template_file="${artifacts_dir}/manifests/operator-artifacts.yaml.tpl"
 keep_output="false"
 explicit_output="false"
@@ -21,21 +22,6 @@ trap cleanup EXIT
 
 fail() {
   echo "ERROR: $*" >&2
-  exit 1
-}
-
-missing_env_file() {
-  cat >&2 <<EOF
-Missing operator artifacts environment file:
-  ${env_file}
-
-Create it from the template:
-  cp ${env_template} ${env_file}
-
-Then edit all required placeholder values before rerunning this script.
-
-The real operator-artifacts.env file is intentionally gitignored and must not be committed.
-EOF
   exit 1
 }
 
@@ -94,6 +80,11 @@ render_template() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || fail "--env-file requires a path."
+      env_file="$2"
+      shift 2
+      ;;
     --keep-output)
       keep_output="true"
       shift
@@ -106,7 +97,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -h|--help)
       cat <<'USAGE'
-Usage: render-operator-artifacts.sh [--keep-output] [--output <path>]
+Usage: render-operator-artifacts.sh [--env-file <path>] [--keep-output] [--output <path>]
 
 Renders the operator-artifacts manifest to a temporary file and deletes it by
 default. Use --keep-output to keep a non-predictable mktemp output file, or
@@ -123,11 +114,13 @@ USAGE
   esac
 done
 
-[[ -f "${env_file}" ]] || missing_env_file
+[[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
+[[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
 [[ -f "${template_file}" ]] || fail "Missing template file: ${template_file}"
 
-# shellcheck source=/dev/null
-source "${env_file}"
+# shellcheck source=lib/load-operator-artifacts-config.sh
+source "${env_helper}"
+load_operator_artifacts_env "${env_file}" "true"
 
 required_vars=(
   OPERATOR_ARTIFACTS_NAMESPACE

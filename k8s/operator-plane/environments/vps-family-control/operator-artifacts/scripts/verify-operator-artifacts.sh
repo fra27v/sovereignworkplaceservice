@@ -3,27 +3,13 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
+env_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control"
 artifacts_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control/operator-artifacts"
-env_file="${artifacts_dir}/operator-artifacts.env"
-env_template="${artifacts_dir}/operator-artifacts.env.example"
+env_file="${env_dir}/operator-plane.env"
+env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
 
 fail() {
   echo "ERROR: $*" >&2
-  exit 1
-}
-
-missing_env_file() {
-  cat >&2 <<EOF
-Missing operator artifacts environment file:
-  ${env_file}
-
-Create it from the template:
-  cp ${env_template} ${env_file}
-
-Then edit all required placeholder values before rerunning this script.
-
-The real operator-artifacts.env file is intentionally gitignored and must not be committed.
-EOF
   exit 1
 }
 
@@ -37,10 +23,29 @@ require_var() {
 
 command -v kubectl >/dev/null 2>&1 || fail "Missing required command: kubectl"
 command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
-[[ -f "${env_file}" ]] || missing_env_file
 
-# shellcheck source=/dev/null
-source "${env_file}"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || fail "--env-file requires a path."
+      env_file="$2"
+      shift 2
+      ;;
+    --help|-h)
+      echo "Usage: verify-operator-artifacts.sh [--env-file <path>]"
+      exit 0
+      ;;
+    *)
+      fail "Unknown argument: $1"
+      ;;
+  esac
+done
+
+[[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
+[[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
+# shellcheck source=lib/load-operator-artifacts-config.sh
+source "${env_helper}"
+load_operator_artifacts_env "${env_file}" "true"
 
 required_vars=(
   OPERATOR_ARTIFACTS_NAMESPACE

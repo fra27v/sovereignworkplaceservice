@@ -2,29 +2,12 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-env_file="${script_dir}/../operator-artifacts.env"
-env_template="${script_dir}/../operator-artifacts.env.example"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
 
 fail() {
   echo "ERROR: $*" >&2
-  exit 1
-}
-
-missing_env_file() {
-  cat >&2 <<EOF
-Missing operator artifacts environment file:
-  ${env_file}
-
-Create it from the template:
-  cp ${env_template} ${env_file}
-
-Then edit:
-  OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME
-  OPERATOR_ARTIFACTS_TENANT_NAME
-  OPERATOR_ARTIFACTS_AUTH_USERNAME
-
-The real operator-artifacts.env file is intentionally gitignored and must not be committed.
-EOF
   exit 1
 }
 
@@ -36,11 +19,29 @@ require_var() {
   [[ "${value}" != "<set-me>" ]] || fail "Variable still has placeholder value: ${name}"
 }
 
-[[ "${EUID}" -eq 0 ]] || fail "Run this script as root because it writes under /var/lib."
-[[ -f "${env_file}" ]] || missing_env_file
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || fail "--env-file requires a path."
+      env_file="$2"
+      shift 2
+      ;;
+    --help|-h)
+      echo "Usage: prepare-local-operator-artifacts-files.sh [--env-file <path>]"
+      exit 0
+      ;;
+    *)
+      fail "Unknown argument: $1"
+      ;;
+  esac
+done
 
-# shellcheck source=/dev/null
-source "${env_file}"
+[[ "${EUID}" -eq 0 ]] || fail "Run this script as root because it writes under /var/lib."
+[[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
+[[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
+# shellcheck source=lib/load-operator-artifacts-config.sh
+source "${env_helper}"
+load_operator_artifacts_env "${env_file}" "true"
 
 required_vars=(
   OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME

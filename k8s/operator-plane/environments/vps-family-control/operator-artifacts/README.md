@@ -4,6 +4,12 @@ Environment-specific operator artifact repository material for `vps-family-contr
 
 Commit sanitized examples, manifests, scripts, and documentation only. Do not commit real artifacts, tenant tokens, certificates, private keys, or real domains.
 
+Operational configuration for this environment lives in the central
+`../operator-plane.env` file. `operator-artifacts.env` is not used as an
+operational source. The public hostname is derived from `OPERATOR_DOMAIN` as
+`operator-artifacts.${OPERATOR_DOMAIN}`, and the BasicAuth username is derived
+from `OPERATOR_ARTIFACTS_TENANT_NAME`.
+
 ## Validated state
 
 Validated behavior for this environment:
@@ -45,6 +51,9 @@ Artifact paths:
 Do not paste BasicAuth tokens in logs or docs. Publishing the CA bundle does
 not expose `operator-vault`.
 
-If the home public IP changes, update the IPAllowList and redeploy. If the token is rotated, regenerate htpasswd and reapply the deployment. Let's Encrypt renewals depend on OVH DNS-01 credentials.
+If the home public IP changes, update `OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES`
+in `operator-plane.env` and redeploy. If the token is rotated, regenerate
+htpasswd and reapply the deployment. Let's Encrypt renewals depend on OVH
+DNS-01 credentials.
 
 Do not paste tokens, htpasswd contents, Kubernetes Secret data, or rendered manifests.

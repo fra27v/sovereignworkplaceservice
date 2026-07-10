@@ -3,30 +3,13 @@ set -euo pipefail
 umask 077
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-env_file="${script_dir}/../operator-artifacts.env"
-env_template="${script_dir}/../operator-artifacts.env.example"
+env_dir="$(cd -- "${script_dir}/../.." && pwd)"
+env_file="${env_dir}/operator-plane.env"
+env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
 force="false"
 
 fail() {
   echo "ERROR: $*" >&2
-  exit 1
-}
-
-missing_env_file() {
-  cat >&2 <<EOF
-Missing operator artifacts environment file:
-  ${env_file}
-
-Create it from the template:
-  cp ${env_template} ${env_file}
-
-Then edit:
-  OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME
-  OPERATOR_ARTIFACTS_TENANT_NAME
-  OPERATOR_ARTIFACTS_AUTH_USERNAME
-
-The real operator-artifacts.env file is intentionally gitignored and must not be committed.
-EOF
   exit 1
 }
 
@@ -40,12 +23,17 @@ require_var() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || fail "--env-file requires a path."
+      env_file="$2"
+      shift 2
+      ;;
     --force)
       force="true"
       shift
       ;;
     -h|--help)
-      echo "Usage: $0 [--force]"
+      echo "Usage: $0 [--env-file <path>] [--force]"
       exit 0
       ;;
     *)
@@ -57,10 +45,12 @@ done
 [[ "${EUID}" -eq 0 ]] || fail "Run this script as root because it writes under /var/lib."
 command -v htpasswd >/dev/null 2>&1 || fail "Missing required command: htpasswd"
 command -v openssl >/dev/null 2>&1 || fail "Missing required command: openssl"
-[[ -f "${env_file}" ]] || missing_env_file
 
-# shellcheck source=/dev/null
-source "${env_file}"
+[[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
+[[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
+# shellcheck source=lib/load-operator-artifacts-config.sh
+source "${env_helper}"
+load_operator_artifacts_env "${env_file}" "true"
 
 required_vars=(
   OPERATOR_ARTIFACTS_PRIVATE_DIR

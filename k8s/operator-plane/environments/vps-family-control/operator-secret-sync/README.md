@@ -2,7 +2,10 @@
 
 This directory contains the first one-shot Kubernetes Job for projecting operator-plane secrets from Global OpenBao KV into runtime Kubernetes Secrets.
 
-OpenBao KV is the source of truth. Kubernetes Secrets are runtime projections. Local `.env` files are bootstrap, import, and recovery material only.
+OpenBao KV is the source of truth. Kubernetes Secrets are runtime projections.
+`operator-plane.env` is the single operational env file for this environment.
+`operator-plane.bootstrap-secrets.env` is bootstrap/import/recovery material
+only.
 
 ## OpenBao CA Bundle Projection
 
@@ -227,7 +230,9 @@ The OpenBao bootstrap import script uses a strict parser for `operator-plane.boo
 The parser accepts only blank lines, full-line comments, and `KEY=VALUE` entries for known required keys. It rejects duplicate keys, unknown keys, `export KEY=VALUE`, command substitution, backticks, multiline values, missing required keys, and empty required values.
 The operator-artifacts username/token fields in that file are local import
 inputs. OpenBao runtime KV stores final `users`; username/token are not written
-to the runtime KV path.
+to the runtime KV path. Non-secret operator-artifacts runtime config, including
+`OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES`, comes from `operator-plane.env`;
+the public hostname is derived from `OPERATOR_DOMAIN`.
 
 ## OpenBao TLS
 

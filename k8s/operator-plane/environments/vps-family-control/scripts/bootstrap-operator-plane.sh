@@ -216,10 +216,10 @@ phase_operator_artifacts() {
   local artifacts_scripts="${env_dir}/operator-artifacts/scripts"
   local fail_count_before="${#summary_fail[@]}"
 
-  run_if_executable "operator-artifacts local file preparation" "${artifacts_scripts}/prepare-local-operator-artifacts-files.sh" "false"
-  run_if_executable "family-infra-01 artifact token creation" "${artifacts_scripts}/create-family-infra-01-artifact-token.sh" "false"
-  run_if_executable "operator-artifacts install" "${artifacts_scripts}/install-operator-artifacts.sh" "true"
-  run_if_executable "operator-artifacts verify" "${artifacts_scripts}/verify-operator-artifacts.sh" "false"
+  run_if_executable "operator-artifacts local file preparation" "${artifacts_scripts}/prepare-local-operator-artifacts-files.sh" "false" --env-file "${env_file}"
+  run_if_executable "family-infra-01 artifact token creation" "${artifacts_scripts}/create-family-infra-01-artifact-token.sh" "false" --env-file "${env_file}"
+  run_if_executable "operator-artifacts install" "${artifacts_scripts}/install-operator-artifacts.sh" "true" --env-file "${env_file}"
+  run_if_executable "operator-artifacts verify" "${artifacts_scripts}/verify-operator-artifacts.sh" "false" --env-file "${env_file}"
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "operator-artifacts phase completed"
   fi
