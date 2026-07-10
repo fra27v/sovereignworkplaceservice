@@ -23,7 +23,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync-job] [--operator-secret-sync] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync-job] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -37,7 +37,6 @@ Options:
   --operator-secret-sync-runner-image
                                       Validate the locked runner image candidate with a temporary no-secret Kubernetes Job.
   --operator-secret-sync-job         Run the real one-shot sync Job after preflight.
-  --operator-secret-sync             Compatibility alias for --operator-secret-sync-job.
   --operator-artifacts               Run operator-artifacts bootstrap.
   --operator-pki                     Configure and verify Operator PKI foundation.
   --operator-vault-tls               Issue and install operator-vault runtime TLS, then restart OpenBao.
@@ -323,10 +322,6 @@ while [[ "$#" -gt 0 ]]; do
       run_operator_secret_sync_runner_image="true"
       ;;
     --operator-secret-sync-job)
-      run_operator_secret_sync_job="true"
-      ;;
-    --operator-secret-sync)
-      warn "--operator-secret-sync is a compatibility alias; prefer --operator-secret-sync-job"
       run_operator_secret_sync_job="true"
       ;;
     --operator-artifacts)
