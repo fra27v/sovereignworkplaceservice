@@ -30,8 +30,11 @@ Options:
 
 Safety:
   - Secret values are never printed.
+  - Generated BasicAuth hashes and users lines are never printed.
   - Existing KV paths are not overwritten unless --overwrite is set.
   - The env file is bootstrap/import/recovery material only.
+  - operator-artifacts username/token are local import inputs only; OpenBao
+    runtime KV stores the final users key.
 EOF
 }
 
@@ -142,7 +145,9 @@ done
 
 require_command bao
 require_command jq
-require_command kubectl
+if [[ "${dry_run}" != "true" ]]; then
+  require_command openssl
+fi
 
 [[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
 [[ -s "${parser_lib}" ]] || fail "Missing parser library: ${parser_lib}"
@@ -162,8 +167,9 @@ if [[ "${dry_run}" = "true" ]]; then
   printf '  - %s\n' "${BOOTSTRAP_SECRET_ACCEPTED_KEYS[@]}"
   print_target "Traefik OVH DNS-01" "${traefik_path}" \
     OVH_ENDPOINT OVH_APPLICATION_KEY OVH_APPLICATION_SECRET OVH_CONSUMER_KEY
-  print_target "operator-artifacts tenant access" "${artifacts_path}" \
-    username token
+  print_target "operator-artifacts BasicAuth runtime projection" "${artifacts_path}" \
+    users
+  echo "  users present/generated: yes"
   print_target "operator-artifacts runtime config" "${artifacts_config_path}" \
     OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
   echo "DRY-RUN: no values were written."
@@ -181,13 +187,16 @@ trap cleanup EXIT
 traefik_json="${tmp_dir}/traefik-ovh-dns01.json"
 artifacts_json="${tmp_dir}/operator-artifacts-family-infra-01.json"
 artifacts_config_json="${tmp_dir}/operator-artifacts-family-infra-01-config.json"
+artifacts_username="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME]}"
+artifacts_token="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN]}"
+artifacts_hash="$(printf '%s' "${artifacts_token}" | openssl passwd -apr1 -stdin)"
+artifacts_users="${artifacts_username}:${artifacts_hash}"
+unset artifacts_token artifacts_hash
 
 export OVH_ENDPOINT="${BOOTSTRAP_SECRETS[OVH_ENDPOINT]}"
 export OVH_APPLICATION_KEY="${BOOTSTRAP_SECRETS[OVH_APPLICATION_KEY]}"
 export OVH_APPLICATION_SECRET="${BOOTSTRAP_SECRETS[OVH_APPLICATION_SECRET]}"
 export OVH_CONSUMER_KEY="${BOOTSTRAP_SECRETS[OVH_CONSUMER_KEY]}"
-export OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME]}"
-export OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN]}"
 export OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME]}"
 export OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES]}"
 
@@ -198,10 +207,10 @@ jq -n '{
   OVH_CONSUMER_KEY: env.OVH_CONSUMER_KEY
 }' > "${traefik_json}"
 
-jq -n '{
-  username: env.OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME,
-  token: env.OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN
+jq -n --arg users "${artifacts_users}" '{
+  users: $users
 }' > "${artifacts_json}"
+unset artifacts_users artifacts_username
 
 jq -n '{
   OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME: env.OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME,
@@ -211,8 +220,8 @@ jq -n '{
 chmod 0600 "${traefik_json}" "${artifacts_json}" "${artifacts_config_json}"
 
 write_json_path "Traefik OVH DNS-01" "${traefik_path}" "${traefik_json}"
-write_json_path "operator-artifacts tenant access" "${artifacts_path}" "${artifacts_json}"
+write_json_path "operator-artifacts BasicAuth runtime projection" "${artifacts_path}" "${artifacts_json}"
 write_json_path "operator-artifacts runtime config" "${artifacts_config_path}" "${artifacts_config_json}"
 
 echo "Operator-plane bootstrap secrets were imported into OpenBao KV."
-echo "Secret values were not printed."
+echo "Secret values, generated hashes, and htpasswd users contents were not printed."

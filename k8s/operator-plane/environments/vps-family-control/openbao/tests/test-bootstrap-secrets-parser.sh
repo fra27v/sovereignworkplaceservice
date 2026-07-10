@@ -67,6 +67,11 @@ write_valid_file "${unknown_file}"
 printf '%s\n' 'UNKNOWN_KEY=placeholder' >> "${unknown_file}"
 expect_failure "unknown key rejection" "${unknown_file}"
 
+derived_users_file="${tmp_dir}/derived-users.env"
+write_valid_file "${derived_users_file}"
+printf '%s\n' 'OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERS=placeholder-users-line' >> "${derived_users_file}"
+expect_failure "derived users key rejection" "${derived_users_file}"
+
 export_file="${tmp_dir}/export.env"
 write_valid_file "${export_file}"
 printf '%s\n' 'export OVH_ENDPOINT=placeholder' >> "${export_file}"
