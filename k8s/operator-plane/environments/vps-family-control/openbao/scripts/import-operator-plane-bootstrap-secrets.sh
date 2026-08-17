@@ -5,7 +5,7 @@ umask 077
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/../.." && pwd)"
 parser_lib="${script_dir}/lib/bootstrap-secrets-parser.sh"
-env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
+artifacts_env_helper="${env_dir}/operator-artifacts/scripts/lib/load-operator-artifacts-config.sh"
 
 operator_env_file="${env_dir}/operator-plane.env"
 env_file="${env_dir}/operator-plane.bootstrap-secrets.env"
@@ -39,10 +39,12 @@ Safety:
   - Generated BasicAuth hashes and users lines are never printed.
   - Existing KV paths are not overwritten unless --overwrite is set.
   - The env file is bootstrap/import/recovery material only.
-  - operator-artifacts username/token are local import inputs only; OpenBao
-    runtime KV stores the final users key.
+  - operator-artifacts token is local import material only; OpenBao runtime KV
+    stores the final users key.
   - operator-artifacts hostname and allowed source ranges are read from
     operator-plane.env, not from the bootstrap secrets file.
+  - operator-artifacts username is derived from OPERATOR_ARTIFACTS_TENANT_NAME
+    in operator-plane.env.
 EOF
 }
 
@@ -165,7 +167,7 @@ fi
 [[ -f "${env_file}" ]] || fail "Missing env file: ${env_file}"
 [[ -s "${parser_lib}" ]] || fail "Missing parser library: ${parser_lib}"
 [[ -f "${operator_env_file}" ]] || fail "Missing central operator-plane env file: ${operator_env_file}"
-[[ -s "${env_loader}" ]] || fail "Missing operator-plane env loader: ${env_loader}"
+[[ -s "${artifacts_env_helper}" ]] || fail "Missing operator-artifacts config helper: ${artifacts_env_helper}"
 
 if [[ "${dry_run}" != "true" ]]; then
   mode="$(file_mode "${env_file}")"
@@ -177,14 +179,13 @@ fi
 # shellcheck source=lib/bootstrap-secrets-parser.sh
 source "${parser_lib}"
 parse_bootstrap_secrets_file "${env_file}"
-# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
-source "${env_loader}"
+# shellcheck source=../../operator-artifacts/scripts/lib/load-operator-artifacts-config.sh
+source "${artifacts_env_helper}"
 if [[ "${dry_run}" = "true" ]]; then
-  load_operator_plane_env "${operator_env_file}" "false" OPERATOR_DOMAIN OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
+  load_operator_artifacts_env "${operator_env_file}" "false"
 else
-  load_operator_plane_env "${operator_env_file}" "true" OPERATOR_DOMAIN OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES
+  load_operator_artifacts_env "${operator_env_file}" "true"
 fi
-OPERATOR_ARTIFACTS_PUBLIC_HOSTNAME="operator-artifacts.${OPERATOR_DOMAIN}"
 
 if [[ "${dry_run}" = "true" ]]; then
   echo "Env file: ${env_file}"
@@ -213,7 +214,7 @@ trap cleanup EXIT
 traefik_json="${tmp_dir}/traefik-ovh-dns01.json"
 artifacts_json="${tmp_dir}/operator-artifacts-family-infra-01.json"
 artifacts_config_json="${tmp_dir}/operator-artifacts-family-infra-01-config.json"
-artifacts_username="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME]}"
+artifacts_username="${OPERATOR_ARTIFACTS_AUTH_USERNAME}"
 artifacts_token="${BOOTSTRAP_SECRETS[OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN]}"
 artifacts_hash="$(printf '%s' "${artifacts_token}" | openssl passwd -apr1 -stdin)"
 artifacts_users="${artifacts_username}:${artifacts_hash}"

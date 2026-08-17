@@ -22,7 +22,6 @@ OVH_ENDPOINT=placeholder-endpoint
 OVH_APPLICATION_KEY=placeholder-application-key
 OVH_APPLICATION_SECRET=placeholder-application-secret
 OVH_CONSUMER_KEY=placeholder-consumer-key
-OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME=placeholder-user
 OPERATOR_ARTIFACTS_FAMILY_INFRA_01_TOKEN=placeholder-token
 EOF
 }
@@ -69,6 +68,11 @@ derived_users_file="${tmp_dir}/derived-users.env"
 write_valid_file "${derived_users_file}"
 printf '%s\n' 'OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERS=placeholder-users-line' >> "${derived_users_file}"
 expect_failure "derived users key rejection" "${derived_users_file}"
+
+derived_username_file="${tmp_dir}/derived-username.env"
+write_valid_file "${derived_username_file}"
+printf '%s\n' 'OPERATOR_ARTIFACTS_FAMILY_INFRA_01_USERNAME=placeholder-user' >> "${derived_username_file}"
+expect_failure "derived username key rejection" "${derived_username_file}"
 
 runtime_config_file="${tmp_dir}/runtime-config.env"
 write_valid_file "${runtime_config_file}"
