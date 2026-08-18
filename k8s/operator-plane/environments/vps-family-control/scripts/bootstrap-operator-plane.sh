@@ -64,6 +64,8 @@ Safety:
   - --openbao-operator-kv is explicit because it creates the versioned
     operator-plane source-of-truth KV mount in Global OpenBao.
   - --operator-secret-sync-job is explicit and runs only when requested.
+  - --operator-artifacts --dry-run renders the manifest and runs the
+    operator-artifacts installer in server-side dry-run mode.
   - --operator-vault-tls is intentionally explicit because it rotates runtime
     TLS and restarts only the configured OpenBao pod.
 EOF
@@ -238,9 +240,28 @@ phase_operator_artifacts() {
   local artifacts_scripts="${env_dir}/operator-artifacts/scripts"
   local fail_count_before="${#summary_fail[@]}"
 
+  if [[ "${dry_run}" = "true" ]]; then
+    local install_script="${artifacts_scripts}/install-operator-artifacts.sh"
+    if [[ ! -x "${install_script}" ]]; then
+      fail "operator-artifacts install script is missing or not executable: ${install_script}"
+      return 0
+    fi
+
+    echo "+ ${install_script} --env-file ${env_file} --dry-run"
+    if ! "${install_script}" --env-file "${env_file}" --dry-run; then
+      fail "operator-artifacts install dry-run failed: ${install_script}"
+      return 0
+    fi
+
+    if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
+      ok "operator-artifacts phase completed"
+    fi
+    return 0
+  fi
+
   run_if_executable "operator-artifacts local file preparation" "${artifacts_scripts}/prepare-local-operator-artifacts-files.sh" "false" --env-file "${env_file}"
   run_if_executable "family-infra-01 artifact token creation" "${artifacts_scripts}/create-family-infra-01-artifact-token.sh" "false" --env-file "${env_file}"
-  run_if_executable "operator-artifacts install" "${artifacts_scripts}/install-operator-artifacts.sh" "true" --env-file "${env_file}"
+  run_if_executable "operator-artifacts install" "${artifacts_scripts}/install-operator-artifacts.sh" "true" --env-file "${env_file}" --wait
   run_if_executable "operator-artifacts verify" "${artifacts_scripts}/verify-operator-artifacts.sh" "false" --env-file "${env_file}"
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "operator-artifacts phase completed"

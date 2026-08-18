@@ -167,24 +167,24 @@ fi
 render_template > "${output_file}"
 chmod 0600 "${output_file}"
 
-echo "Rendered operator-artifacts manifest."
-echo "Output file: ${output_file}"
-echo "Namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}"
-echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}"
-echo "Public hostname: configured"
-echo "Public directory: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}"
-echo "Nginx image: ${OPERATOR_ARTIFACTS_NGINX_IMAGE}"
-echo "BasicAuth Secret name: ${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}"
-echo "IP allowlist: configured with ${source_range_count} source ranges"
-echo "The htpasswd contents were not printed."
-echo "Rendered Secret material was not printed."
-echo "No manifest was applied."
+echo "Rendered operator-artifacts manifest." >&2
+echo "Output file: ${output_file}" >&2
+echo "Namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}" >&2
+echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}" >&2
+echo "Public hostname: configured" >&2
+echo "Public directory: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}" >&2
+echo "Nginx image: ${OPERATOR_ARTIFACTS_NGINX_IMAGE}" >&2
+echo "BasicAuth Secret name: ${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}" >&2
+echo "IP allowlist: configured with ${source_range_count} source ranges" >&2
+echo "The htpasswd contents were not printed." >&2
+echo "Rendered Secret material was not printed." >&2
+echo "No manifest was applied." >&2
 if [[ "${keep_output}" = "true" ]]; then
-  echo "WARNING: This rendered manifest may contain sensitive BasicAuth Secret material."
-  echo "WARNING: Delete ${output_file} immediately after local inspection."
-  echo "Kept rendered manifest permissions: 0600"
+  echo "WARNING: This rendered manifest may contain sensitive BasicAuth Secret material." >&2
+  echo "WARNING: Delete ${output_file} immediately after local inspection." >&2
+  echo "Kept rendered manifest permissions: 0600" >&2
 elif [[ "${explicit_output}" = "true" ]]; then
-  echo "Output file permissions: 0600"
+  echo "Output file permissions: 0600" >&2
 else
-  echo "Temporary output will be removed after script completion. Use --keep-output to keep it for local inspection."
+  echo "Temporary output will be removed after script completion. Use --keep-output to keep it for local inspection." >&2
 fi

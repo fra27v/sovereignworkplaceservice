@@ -4,13 +4,14 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd -- "${script_dir}/../../../../../.." && pwd)"
 env_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control"
-artifacts_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control/operator-artifacts"
 env_file="${env_dir}/operator-plane.env"
 env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
 image_helper="${script_dir}/lib/resolve-operator-artifacts-image.sh"
 lock_file="${env_dir}/dependencies.lock.json"
 render_script="${script_dir}/render-operator-artifacts.sh"
 rendered_file="$(mktemp /tmp/operator-artifacts.install.XXXXXX.yaml)"
+dry_run="false"
+wait_for_rollout="false"
 chmod 0600 "${rendered_file}"
 
 cleanup() {
@@ -20,20 +21,32 @@ cleanup() {
 }
 trap cleanup EXIT
 
+usage() {
+  cat <<'USAGE'
+Usage: install-operator-artifacts.sh [--env-file <path>] [--dry-run] [--wait] [--help]
+
+Renders and reconciles the operator-artifacts Kubernetes manifest.
+
+Options:
+  --env-file <path>  Path to operator-plane.env.
+  --dry-run          Render and run kubectl server-side dry-run only.
+  --wait             Wait for the operator-artifacts Deployment rollout after apply.
+  --help             Show this help.
+
+Safety:
+  - Does not print rendered Secret material or htpasswd contents.
+  - Refuses rendered nginx images that are not digest-pinned.
+  - Removes the temporary rendered manifest on exit.
+USAGE
+}
+
 fail() {
   echo "ERROR: $*" >&2
   exit 1
 }
 
-print_rollout_troubleshooting() {
-  cat <<EOF
-Rollout did not complete successfully. Safe troubleshooting commands:
-  kubectl -n ${OPERATOR_ARTIFACTS_NAMESPACE} get pods -o wide
-  kubectl -n ${OPERATOR_ARTIFACTS_NAMESPACE} logs deploy/${OPERATOR_ARTIFACTS_SERVICE_NAME} --tail=120
-  kubectl -n ${OPERATOR_ARTIFACTS_NAMESPACE} describe pod -l app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}
-
-Do not print or paste token values, htpasswd contents, Kubernetes Secret data, or rendered Secret material.
-EOF
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "Missing required command: $1"
 }
 
 require_var() {
@@ -44,18 +57,35 @@ require_var() {
   [[ "${value}" != "<set-me>" ]] || fail "Variable still has placeholder value: ${name}"
 }
 
-command -v kubectl >/dev/null 2>&1 || fail "Missing required command: kubectl"
-command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
+rendered_nginx_image() {
+  awk '
+    $0 ~ /^[[:space:]]*-[[:space:]]*name:[[:space:]]*nginx[[:space:]]*$/ { in_nginx = 1; next }
+    in_nginx && $0 ~ /^[[:space:]]*image:[[:space:]]*/ {
+      sub(/^[[:space:]]*image:[[:space:]]*/, "")
+      gsub(/"/, "")
+      print
+      exit
+    }
+  ' "${rendered_file}"
+}
 
-while [[ $# -gt 0 ]]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --env-file)
-      [[ $# -ge 2 ]] || fail "--env-file requires a path."
+      [[ "$#" -ge 2 ]] || fail "--env-file requires a path."
       env_file="$2"
       shift 2
       ;;
+    --dry-run)
+      dry_run="true"
+      shift
+      ;;
+    --wait)
+      wait_for_rollout="true"
+      shift
+      ;;
     --help|-h)
-      echo "Usage: install-operator-artifacts.sh [--env-file <path>]"
+      usage
       exit 0
       ;;
     *)
@@ -64,9 +94,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+require_command kubectl
+require_command jq
+require_command awk
+
 [[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
 [[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
 [[ -f "${image_helper}" ]] || fail "Missing operator-artifacts image resolver: ${image_helper}"
+[[ -x "${render_script}" ]] || fail "Missing executable render script: ${render_script}"
+
 # shellcheck source=lib/load-operator-artifacts-config.sh
 source "${env_helper}"
 # shellcheck source=lib/resolve-operator-artifacts-image.sh
@@ -90,152 +126,37 @@ expected_container_image="$(resolve_operator_artifacts_image "${lock_file}")"
 
 "${render_script}" --env-file "${env_file}" --output "${rendered_file}"
 
+container_image="$(rendered_nginx_image)"
+[[ -n "${container_image}" ]] || fail "Rendered manifest does not contain the nginx container image."
+[[ "${container_image}" = *@sha256:* ]] || fail "Rendered nginx image is not digest-pinned: ${container_image}"
+[[ "${container_image}" = "${expected_container_image}" ]] || fail "Rendered nginx image does not match dependency lock: ${container_image}"
+
+echo "Prepared operator-artifacts reconciliation."
+echo "Namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}"
+echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}"
+echo "Public hostname: configured"
+echo "Public directory: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}"
+echo "Nginx image: ${container_image}"
+echo "BasicAuth Secret name: ${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}"
+echo "Rendered manifest path: ${rendered_file}"
+echo "Rendered Secret material and htpasswd contents were not printed."
+
+if [[ "${dry_run}" = "true" ]]; then
+  echo "DRY-RUN: running kubectl server-side apply dry-run."
+  kubectl apply --dry-run=server -f "${rendered_file}" >/dev/null
+  echo "DRY-RUN: operator-artifacts reconciliation passed server-side validation."
+  exit 0
+fi
+
+echo "Applying operator-artifacts manifest."
 kubectl apply -f "${rendered_file}"
 
-echo "Waiting for operator-artifacts Deployment rollout."
-if ! kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" rollout status deployment/"${OPERATOR_ARTIFACTS_SERVICE_NAME}" --timeout=180s; then
-  print_rollout_troubleshooting
-  exit 1
+if [[ "${wait_for_rollout}" = "true" ]]; then
+  echo "Waiting for operator-artifacts Deployment rollout."
+  kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" rollout status deployment/"${OPERATOR_ARTIFACTS_SERVICE_NAME}" --timeout=180s
+else
+  echo "Apply completed. Rollout wait was not requested."
 fi
 
-echo "Verifying operator-artifacts resources."
-kubectl get namespace "${OPERATOR_ARTIFACTS_NAMESPACE}" \
-  -o custom-columns='NAME:.metadata.name' \
-  --no-headers
-kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
-  -o custom-columns='NAME:.metadata.name,READY:.status.readyReplicas,AVAILABLE:.status.availableReplicas' \
-  --no-headers
-kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
-  -o custom-columns='NAME:.metadata.name,TYPE:.spec.type,PORT:.spec.ports[0].port' \
-  --no-headers
-kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" \
-  -o custom-columns='NAME:.metadata.name' \
-  --no-headers
-kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth" \
-  -o custom-columns='NAME:.metadata.name' \
-  --no-headers
-kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
-  -o custom-columns='NAME:.metadata.name' \
-  --no-headers
-
-deployment_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
-service_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
-ingressroute_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
-pods_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get pods \
-  -l "app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
-  -o json)"
-
-container_image="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .image')"
-[[ "${container_image}" = *@sha256:* ]] || fail "Nginx container image is not digest-pinned: ${container_image}"
-[[ "${container_image}" = "${expected_container_image}" ]] || fail "Unexpected nginx container image: ${container_image}"
-echo "Container image: ${container_image}"
-
-container_port="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .ports[]? | select(.name == "http") | .containerPort')"
-[[ "${container_port}" = "8080" ]] || fail "Unexpected nginx http container port: ${container_port}"
-echo "Container http port: ${container_port}"
-
-service_port="$(printf '%s\n' "${service_json}" | jq -r '.spec.ports[]? | select(.name == "http") | .port')"
-[[ "${service_port}" = "80" ]] || fail "Unexpected Service http port: ${service_port}"
-echo "Service http port: ${service_port}"
-
-basicauth_middleware_name="${OPERATOR_ARTIFACTS_SERVICE_NAME}-basicauth"
-first_middleware="$(printf '%s\n' "${ingressroute_json}" | jq -r '.spec.routes[0].middlewares[0].name // ""')"
-second_middleware="$(printf '%s\n' "${ingressroute_json}" | jq -r '.spec.routes[0].middlewares[1].name // ""')"
-[[ "${first_middleware}" = "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" ]] || fail "IngressRoute does not apply IPAllowList before BasicAuth."
-[[ "${second_middleware}" = "${basicauth_middleware_name}" ]] || fail "IngressRoute does not apply BasicAuth after IPAllowList."
-echo "IngressRoute middleware order: IPAllowList before BasicAuth."
-
-deployment_available="$(printf '%s\n' "${deployment_json}" | jq -r 'any(.status.conditions[]?; .type == "Available" and .status == "True")')"
-[[ "${deployment_available}" = "true" ]] || fail "Deployment is not Available."
-echo "Deployment is Available."
-
-echo "Safe pod metadata:"
-printf '%s\n' "${pods_json}" | jq -r '
-  .items[]?
-  | {
-      name: .metadata.name,
-      phase: .status.phase,
-      ready: ((.status.conditions[]? | select(.type == "Ready") | .status) // "Unknown"),
-      restarts: ([.status.containerStatuses[]?.restartCount] | add // 0),
-      waiting_reason: ((.status.containerStatuses[]?.state.waiting.reason) // "")
-    }
-  | "  name=\(.name) phase=\(.phase) ready=\(.ready) restarts=\(.restarts)"
-'
-
-ready_pods="$(printf '%s\n' "${pods_json}" | jq -r '.items[]? | select(any(.status.conditions[]?; .type == "Ready" and .status == "True")) | .metadata.name')"
-[[ -n "${ready_pods}" ]] || fail "No matching operator-artifacts pod has Ready=True."
-
-bad_pods="$(printf '%s\n' "${pods_json}" | jq -r '
-  .items[]?
-  | {
-      name: .metadata.name,
-      phase: .status.phase,
-      ready: ((.status.conditions[]? | select(.type == "Ready") | .status) // "Unknown"),
-      waiting_reason: ((.status.containerStatuses[]?.state.waiting.reason) // "")
-    }
-  | select(.phase != "Running" or .phase == "Error" or .phase == "Pending" or .ready != "True" or .waiting_reason == "CrashLoopBackOff")
-  | .name
-')"
-[[ -z "${bad_pods}" ]] || fail "One or more operator-artifacts pods are not healthy."
-
-host_paths="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.volumes[]? | select(.hostPath != null) | .hostPath.path')"
-runtime_empty_dir_mounts="$(printf '%s\n' "${deployment_json}" | jq -r '
-  .spec.template.spec as $pod
-  | $pod.containers[]?
-  | select(.name == "nginx")
-  | .volumeMounts[]?
-  | . as $mount
-  | select($mount.mountPath == "/var/cache/nginx" or $mount.mountPath == "/var/run" or $mount.mountPath == "/tmp" or $mount.mountPath == "/var/log/nginx")
-  | select(any($pod.volumes[]?; .name == $mount.name and .emptyDir != null))
-  | $mount.mountPath
-')"
-
-echo "Safe Deployment hostPath metadata:"
-printf '%s\n' "${host_paths}" | sed 's/^/  /'
-
-if printf '%s\n' "${host_paths}" | grep -Fxq "${OPERATOR_ARTIFACTS_PRIVATE_DIR}"; then
-  fail "Deployment mounts the private artifact directory, which is not allowed."
-fi
-
-if ! printf '%s\n' "${host_paths}" | grep -Fxq "${OPERATOR_ARTIFACTS_PUBLIC_DIR}"; then
-  fail "Deployment does not mount the expected public artifact directory."
-fi
-
-public_mount_read_only="$(printf '%s\n' "${deployment_json}" | jq -r --arg public_dir "${OPERATOR_ARTIFACTS_PUBLIC_DIR}" '
-  .spec.template.spec as $pod
-  | ($pod.volumes[]? | select(.hostPath.path == $public_dir) | .name) as $public_volume
-  | if $public_volume == null then "false"
-    else
-      any($pod.containers[]? | select(.name == "nginx") | .volumeMounts[]?;
-        .name == $public_volume and .mountPath == "/usr/share/nginx/html" and .readOnly == true)
-    end
-')"
-[[ "${public_mount_read_only}" = "true" ]] || fail "Public artifact hostPath is not mounted read-only at /usr/share/nginx/html."
-echo "Public artifact hostPath is mounted read-only."
-
-unexpected_host_paths="$(printf '%s\n' "${host_paths}" | grep -Fxv "${OPERATOR_ARTIFACTS_PUBLIC_DIR}" || true)"
-if [[ -n "${unexpected_host_paths}" ]]; then
-  echo "Unexpected hostPath mounts:" >&2
-  printf '%s\n' "${unexpected_host_paths}" >&2
-  exit 1
-fi
-
-required_runtime_mounts=(
-  /var/cache/nginx
-  /var/run
-  /tmp
-  /var/log/nginx
-)
-
-echo "Nginx writable runtime emptyDir mounts:"
-for mount_path in "${required_runtime_mounts[@]}"; do
-  if ! printf '%s\n' "${runtime_empty_dir_mounts}" | grep -Fxq "${mount_path}"; then
-    fail "Missing nginx emptyDir runtime mount: ${mount_path}"
-  fi
-  echo "  ${mount_path}"
-done
-
-echo "operator-artifacts resources are installed and hostPath mounts are limited to the public directory."
-cleanup
-echo "Temporary rendered manifest was removed."
-echo "Secret data and htpasswd contents were not printed."
+echo "operator-artifacts reconciliation completed."
+echo "Temporary rendered manifest will be removed."

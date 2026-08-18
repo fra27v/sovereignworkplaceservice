@@ -11,8 +11,8 @@ Current scripts:
 
 - `prepare-local-operator-artifacts-files.sh`: prepares local public/private artifact directories and a non-secret dummy artifact.
 - `create-family-infra-01-artifact-token.sh`: creates local tenant token and BasicAuth material without printing the token.
-- `render-operator-artifacts.sh`: renders the operator-artifacts Kubernetes manifest to a temporary file without applying it.
-- `install-operator-artifacts.sh`: renders and applies operator-artifacts resources, then verifies metadata and public-only hostPath mounts.
+- `render-operator-artifacts.sh`: renders the operator-artifacts Kubernetes manifest to a temporary file or explicit `--output` path without applying it.
+- `install-operator-artifacts.sh`: renders operator-artifacts resources, validates the digest-pinned nginx image, supports `--dry-run`, and applies with optional `--wait`.
 - `verify-operator-artifacts.sh`: verifies deployed operator-artifacts resources without printing tokens, htpasswd contents, or Secret data.
 - `update-operator-artifacts-ip-allowlist.sh`: updates the central environment allowlist, reapplies operator-artifacts, and verifies the deployment.
 
@@ -23,6 +23,10 @@ timestamped backup, reapplies `operator-artifacts`, and runs verification.
 Examples:
 
 ```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-artifacts --dry-run
+
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-artifacts
+
 sudo ./k8s/operator-plane/environments/vps-family-control/operator-artifacts/scripts/update-operator-artifacts-ip-allowlist.sh --home-ip <home-public-ip> --dry-run --show-masked
 
 sudo ./k8s/operator-plane/environments/vps-family-control/operator-artifacts/scripts/update-operator-artifacts-ip-allowlist.sh --home-ip <home-public-ip>

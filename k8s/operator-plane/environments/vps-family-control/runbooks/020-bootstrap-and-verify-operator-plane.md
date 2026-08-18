@@ -201,6 +201,18 @@ Preview the `operator-artifacts` phase:
 sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-artifacts --dry-run
 ```
 
+Run the `operator-artifacts` reconcile phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-artifacts
+```
+
+Then run the environment verifier:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/scripts/verify-operator-plane.sh
+```
+
 Preview the operator-secret-sync phase:
 
 ```bash

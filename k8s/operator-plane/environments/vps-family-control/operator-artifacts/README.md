@@ -63,4 +63,18 @@ new trusted registry digest, updating the lockfile and rendered manifest
 consumer in the same Git change, and redeploying from committed Git state. Do
 not use floating tags without a digest and do not install packages at runtime.
 
+Reconcile the Deployment through the bootstrap wrapper, not manual
+render/apply commands:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh \
+  --operator-artifacts \
+  --dry-run
+
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh \
+  --operator-artifacts
+
+./k8s/operator-plane/environments/vps-family-control/scripts/verify-operator-plane.sh
+```
+
 Do not paste tokens, htpasswd contents, Kubernetes Secret data, or rendered manifests.
