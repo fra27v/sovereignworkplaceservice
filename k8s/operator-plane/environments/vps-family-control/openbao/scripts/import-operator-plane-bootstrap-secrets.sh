@@ -142,8 +142,21 @@ ensure_kv_mount() {
     return 0
   fi
 
-  echo "Enabling OpenBao KV v2 mount ${kv_mount}/."
-  token_exec "${root_token}" bao secrets enable -path="${kv_mount}" -version=2 kv >/dev/null
+  fail "OpenBao KV v2 mount is missing: ${kv_mount}/"
+}
+
+ensure_targets_writable() {
+  local logical_path
+
+  if [[ "${overwrite}" = "true" ]]; then
+    return 0
+  fi
+
+  for logical_path in "${traefik_path}" "${artifacts_path}" "${artifacts_config_path}"; do
+    if path_exists "${logical_path}"; then
+      fail "Refusing to overwrite existing KV path without --overwrite: ${kv_mount}/${logical_path}"
+    fi
+  done
 }
 
 token_exec() {
@@ -305,6 +318,7 @@ if [[ "${dry_run}" = "true" ]]; then
 fi
 
 ensure_kv_mount
+ensure_targets_writable
 
 tmp_dir="$(mktemp -d)"
 cleanup() {
