@@ -6,16 +6,30 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/../.." && pwd)"
 parser_lib="${script_dir}/lib/bootstrap-secrets-parser.sh"
 artifacts_env_helper="${env_dir}/operator-artifacts/scripts/lib/load-operator-artifacts-config.sh"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
 
 operator_env_file="${env_dir}/operator-plane.env"
 env_file="${env_dir}/operator-plane.bootstrap-secrets.env"
 dry_run="false"
 overwrite="false"
 kv_mount="operator-kv"
+openbao_namespace="openbao-operator"
+openbao_pod_name="openbao-global-0"
+vault_addr="https://127.0.0.1:8200"
+vault_cacert=""
+vault_cacert_fallback=""
+bao_addr="${vault_addr}"
 
 traefik_path="operator-plane/traefik/ovh-dns01"
 artifacts_path="operator-plane/operator-artifacts/family-infra-01"
 artifacts_config_path="operator-plane/operator-artifacts/family-infra-01-config"
+
+required_operator_env_keys=(
+  OPENBAO_NAMESPACE
+  OPENBAO_POD_NAME
+  OPENBAO_BOOTSTRAP_INIT_FILE
+  OPENBAO_TLS_DIR
+)
 
 usage() {
   cat <<EOF
@@ -78,7 +92,7 @@ is_mode_private() {
 path_exists() {
   local logical_path="$1"
 
-  bao kv metadata get -mount="${kv_mount}" "${logical_path}" >/dev/null 2>&1
+  token_exec "${root_token}" bao kv metadata get -mount="${kv_mount}" "${logical_path}" >/dev/null 2>&1
 }
 
 print_target() {
@@ -109,24 +123,91 @@ write_json_path() {
   fi
 
   echo "Writing ${label} to ${kv_mount}/${logical_path} without printing values."
-  bao kv put -mount="${kv_mount}" "${logical_path}" @"${json_file}" >/dev/null
+  token_exec_with_json_file "${root_token}" "${json_file}" bao kv put -mount="${kv_mount}" "${logical_path}"
 }
 
 ensure_kv_mount() {
-  if bao secrets list -format=json | jq -e --arg mount "${kv_mount}/" 'has($mount)' >/dev/null; then
-    local type
-    type="$(bao secrets list -format=json | jq -r --arg mount "${kv_mount}/" '.[$mount].type')"
+  local secrets_json type version
+
+  secrets_json="$(token_exec "${root_token}" bao secrets list -format=json)" \
+    || fail "Could not list OpenBao secrets engines. Global OpenBao may be sealed or unreachable."
+
+  if printf '%s\n' "${secrets_json}" | jq -e --arg mount "${kv_mount}/" 'has($mount)' >/dev/null; then
+    type="$(printf '%s\n' "${secrets_json}" | jq -r --arg mount "${kv_mount}/" '.[$mount].type')"
     [[ "${type}" = "kv" ]] || fail "OpenBao mount ${kv_mount}/ exists but is type ${type}, expected kv."
 
-    local version
-    version="$(bao secrets list -format=json | jq -r --arg mount "${kv_mount}/" '.[$mount].options.version // ""')"
+    version="$(printf '%s\n' "${secrets_json}" | jq -r --arg mount "${kv_mount}/" '.[$mount].options.version // ""')"
     [[ "${version}" = "2" ]] || fail "OpenBao mount ${kv_mount}/ is not KV v2."
     echo "OpenBao KV v2 mount ${kv_mount}/ already exists."
     return 0
   fi
 
   echo "Enabling OpenBao KV v2 mount ${kv_mount}/."
-  bao secrets enable -path="${kv_mount}" -version=2 kv >/dev/null
+  token_exec "${root_token}" bao secrets enable -path="${kv_mount}" -version=2 kv >/dev/null
+}
+
+token_exec() {
+  local token="$1"
+  shift
+
+  printf '%s' "${token}" | kubectl -n "${openbao_namespace}" exec -i "${openbao_pod_name}" -- \
+    sh -c 'IFS= read -r BAO_TOKEN; client_cacert="$3"; if [ -r "$2" ]; then client_cacert="$2"; fi; export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$client_cacert" BAO_ADDR="$4" BAO_CACERT="$client_cacert"; shift 4; "$@"' \
+    sh "${vault_addr}" "${vault_cacert}" "${vault_cacert_fallback}" "${bao_addr}" "$@"
+}
+
+token_exec_with_json_file() {
+  local token="$1"
+  local json_file="$2"
+  shift 2
+
+  {
+    printf '%s\n' "${token}"
+    cat "${json_file}"
+  } | kubectl -n "${openbao_namespace}" exec -i "${openbao_pod_name}" -- \
+    sh -c '
+      IFS= read -r BAO_TOKEN
+      client_cacert="$3"
+      if [ -r "$2" ]; then
+        client_cacert="$2"
+      fi
+      export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$client_cacert" BAO_ADDR="$4" BAO_CACERT="$client_cacert"
+      shift 4
+      json_file="$(mktemp)"
+      chmod 0600 "${json_file}"
+      trap "rm -f \"${json_file}\"" EXIT
+      cat > "${json_file}"
+      "$@" @"${json_file}" >/dev/null
+    ' sh "${vault_addr}" "${vault_cacert}" "${vault_cacert_fallback}" "${bao_addr}" "$@"
+}
+
+ensure_openbao_pod_ready() {
+  local phase ready
+
+  kubectl -n "${openbao_namespace}" get pod "${openbao_pod_name}" >/dev/null 2>&1 \
+    || fail "Global OpenBao pod is missing: ${openbao_namespace}/${openbao_pod_name}"
+
+  phase="$(kubectl -n "${openbao_namespace}" get pod "${openbao_pod_name}" -o jsonpath='{.status.phase}')"
+  [[ "${phase}" = "Running" ]] \
+    || fail "Global OpenBao pod is not Running: ${openbao_namespace}/${openbao_pod_name} phase=${phase}"
+
+  ready="$(kubectl -n "${openbao_namespace}" get pod "${openbao_pod_name}" -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}')"
+  [[ "${ready}" = "True" ]] \
+    || fail "Global OpenBao pod is not Ready: ${openbao_namespace}/${openbao_pod_name}"
+}
+
+ensure_openbao_unsealed() {
+  local status_output
+
+  status_output="$(token_exec "${root_token}" bao status)" \
+    || fail "Could not run bao status inside ${openbao_namespace}/${openbao_pod_name}. Global OpenBao may be sealed or unreachable."
+
+  if ! printf '%s\n' "${status_output}" | grep -q 'Initialized[[:space:]]*true'; then
+    fail "Global OpenBao is not initialized."
+  fi
+
+  if ! printf '%s\n' "${status_output}" | grep -q 'Sealed[[:space:]]*false'; then
+    fail "Global OpenBao is sealed."
+  fi
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -158,8 +239,9 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-require_command bao
+require_command kubectl
 require_command jq
+require_command grep
 if [[ "${dry_run}" != "true" ]]; then
   require_command openssl
 fi
@@ -168,6 +250,7 @@ fi
 [[ -s "${parser_lib}" ]] || fail "Missing parser library: ${parser_lib}"
 [[ -f "${operator_env_file}" ]] || fail "Missing central operator-plane env file: ${operator_env_file}"
 [[ -s "${artifacts_env_helper}" ]] || fail "Missing operator-artifacts config helper: ${artifacts_env_helper}"
+[[ -s "${env_loader}" ]] || fail "Missing operator-plane env loader: ${env_loader}"
 
 if [[ "${dry_run}" != "true" ]]; then
   mode="$(file_mode "${env_file}")"
@@ -179,6 +262,13 @@ fi
 # shellcheck source=lib/bootstrap-secrets-parser.sh
 source "${parser_lib}"
 parse_bootstrap_secrets_file "${env_file}"
+# shellcheck source=../../scripts/lib/load-operator-plane-env.sh
+source "${env_loader}"
+if [[ "${dry_run}" = "true" ]]; then
+  load_operator_plane_env "${operator_env_file}" "false" "${required_operator_env_keys[@]}"
+else
+  load_operator_plane_env "${operator_env_file}" "true" "${required_operator_env_keys[@]}"
+fi
 # shellcheck source=../../operator-artifacts/scripts/lib/load-operator-artifacts-config.sh
 source "${artifacts_env_helper}"
 if [[ "${dry_run}" = "true" ]]; then
@@ -186,6 +276,17 @@ if [[ "${dry_run}" = "true" ]]; then
 else
   load_operator_artifacts_env "${operator_env_file}" "true"
 fi
+openbao_namespace="${OPENBAO_NAMESPACE}"
+openbao_pod_name="${OPENBAO_POD_NAME}"
+vault_cacert="$(operator_plane_env_openbao_client_cacert_in_pod)"
+vault_cacert_fallback="$(operator_plane_env_openbao_bootstrap_cacert_in_pod)"
+
+init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"
+root_token="$(jq -r '.root_token // empty' "${init_file}")"
+[[ -n "${root_token}" ]] || fail "Could not read root token from OpenBao bootstrap init file."
+
+ensure_openbao_pod_ready
+ensure_openbao_unsealed
 
 if [[ "${dry_run}" = "true" ]]; then
   echo "Env file: ${env_file}"
