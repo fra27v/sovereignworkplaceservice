@@ -77,4 +77,10 @@ sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-oper
 ./k8s/operator-plane/environments/vps-family-control/scripts/verify-operator-plane.sh
 ```
 
+The `--operator-artifacts` phase is idempotent. Existing complete token and
+htpasswd material is preserved and reported with safe file metadata only; a
+partial token/htpasswd state fails for explicit recovery. Deployment
+reconciliation renders the nginx image from the pinned digest in
+`../dependencies.lock.json`.
+
 Do not paste tokens, htpasswd contents, Kubernetes Secret data, or rendered manifests.

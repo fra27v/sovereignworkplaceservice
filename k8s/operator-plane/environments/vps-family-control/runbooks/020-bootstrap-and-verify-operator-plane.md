@@ -207,6 +207,13 @@ Run the `operator-artifacts` reconcile phase:
 sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-artifacts
 ```
 
+This phase is idempotent. Existing complete token and htpasswd material is
+preserved and reported with safe metadata only. If only one of those files
+exists, the phase fails for explicit recovery instead of silently regenerating
+or overwriting credentials. The Deployment image is rendered from the pinned
+nginx digest in `dependencies.lock.json`, and token or htpasswd values are not
+printed.
+
 Then run the environment verifier:
 
 ```bash

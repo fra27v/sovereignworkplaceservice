@@ -71,8 +71,31 @@ htpasswd_file="${tokens_dir}/family-infra-01.htpasswd"
 install -d -o root -g root -m 0700 "${tokens_dir}"
 
 if [[ "${force}" != "true" ]]; then
-  [[ ! -e "${token_file}" ]] || fail "Refusing to overwrite existing token file: ${token_file}"
-  [[ ! -e "${htpasswd_file}" ]] || fail "Refusing to overwrite existing htpasswd file: ${htpasswd_file}"
+  token_exists="false"
+  htpasswd_exists="false"
+  [[ ! -e "${token_file}" ]] || token_exists="true"
+  [[ ! -e "${htpasswd_file}" ]] || htpasswd_exists="true"
+
+  if [[ "${token_exists}" = "true" && "${htpasswd_exists}" = "true" ]]; then
+    [[ -s "${token_file}" ]] || fail "Existing token file is empty: ${token_file}"
+    [[ -s "${htpasswd_file}" ]] || fail "Existing htpasswd file is empty: ${htpasswd_file}"
+
+    echo "Artifact token material for tenant family-infra-01 already exists; leaving it unchanged."
+    echo "Token file: ${token_file}"
+    echo "BasicAuth file: ${htpasswd_file}"
+    echo "Safe file metadata:"
+    ls -l "${token_file}" "${htpasswd_file}"
+    echo "The token value and htpasswd contents were not printed."
+    exit 0
+  fi
+
+  if [[ "${token_exists}" = "true" ]]; then
+    fail "Refusing partial token material state: token file exists but htpasswd file is missing: ${token_file}"
+  fi
+
+  if [[ "${htpasswd_exists}" = "true" ]]; then
+    fail "Refusing partial token material state: htpasswd file exists but token file is missing: ${htpasswd_file}"
+  fi
 fi
 
 token="$(openssl rand -base64 48 | tr -d '\n')"

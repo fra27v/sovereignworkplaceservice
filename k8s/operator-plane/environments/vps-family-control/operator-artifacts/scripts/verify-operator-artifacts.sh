@@ -73,10 +73,15 @@ echo "Namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}"
 echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}"
 
 deployment_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get deployment "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
+pod_selector="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.selector.matchLabels | to_entries | map("\(.key)=\(.value)") | join(",")')"
+[[ -n "${pod_selector}" ]] || fail "Deployment has no matchLabels selector."
 service_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get service "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
 ingressroute_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get ingressroute "${OPERATOR_ARTIFACTS_SERVICE_NAME}" -o json)"
+replicasets_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get replicasets \
+  -l "${pod_selector}" \
+  -o json)"
 pods_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get pods \
-  -l "app.kubernetes.io/name=${OPERATOR_ARTIFACTS_SERVICE_NAME}" \
+  -l "${pod_selector}" \
   -o json)"
 
 container_image="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .image')"
@@ -107,23 +112,54 @@ deployment_available="$(printf '%s\n' "${deployment_json}" | jq -r 'any(.status.
 [[ "${deployment_available}" = "true" ]] || fail "Deployment is not Available."
 echo "Deployment is Available."
 
-echo "Safe pod metadata:"
-printf '%s\n' "${pods_json}" | jq -r '
+current_pod_template_hash="$(printf '%s\n' "${replicasets_json}" | jq -r --arg deployment_name "${OPERATOR_ARTIFACTS_SERVICE_NAME}" '
+  [
+    .items[]?
+    | select(any(.metadata.ownerReferences[]?; .kind == "Deployment" and .name == $deployment_name))
+    | select((.status.replicas // 0) > 0 or (.status.readyReplicas // 0) > 0 or (.status.availableReplicas // 0) > 0)
+    | {
+        hash: (.metadata.labels["pod-template-hash"] // ""),
+        created: (.metadata.creationTimestamp // "")
+      }
+    | select(.hash != "")
+  ]
+  | sort_by(.created)
+  | last
+  | .hash // ""
+')"
+[[ -n "${current_pod_template_hash}" ]] || fail "Could not determine current Deployment pod-template-hash."
+
+current_pods_json="$(printf '%s\n' "${pods_json}" | jq --arg hash "${current_pod_template_hash}" '
+  {items: [.items[]? | select(.metadata.labels["pod-template-hash"] == $hash)]}
+')"
+
+current_pod_count="$(printf '%s\n' "${current_pods_json}" | jq -r '.items | length')"
+[[ "${current_pod_count}" -gt 0 ]] || fail "No pods found for current Deployment pod-template-hash: ${current_pod_template_hash}"
+
+echo "Current Deployment pod-template-hash: ${current_pod_template_hash}"
+echo "Safe current pod metadata:"
+printf '%s\n' "${current_pods_json}" | jq -r '
   .items[]?
   | {
       name: .metadata.name,
+      hash: (.metadata.labels["pod-template-hash"] // ""),
       phase: .status.phase,
       ready: ((.status.conditions[]? | select(.type == "Ready") | .status) // "Unknown"),
       restarts: ([.status.containerStatuses[]?.restartCount] | add // 0),
       waiting_reason: ((.status.containerStatuses[]?.state.waiting.reason) // "")
     }
-  | "  name=\(.name) phase=\(.phase) ready=\(.ready) restarts=\(.restarts)"
+  | "  name=\(.name) hash=\(.hash) phase=\(.phase) ready=\(.ready) restarts=\(.restarts) waiting_reason=\(.waiting_reason)"
 '
 
-ready_pods="$(printf '%s\n' "${pods_json}" | jq -r '.items[]? | select(any(.status.conditions[]?; .type == "Ready" and .status == "True")) | .metadata.name')"
-[[ -n "${ready_pods}" ]] || fail "No matching operator-artifacts pod has Ready=True."
+ready_pods="$(printf '%s\n' "${current_pods_json}" | jq -r '
+  .items[]?
+  | select(.status.phase == "Running")
+  | select(any(.status.conditions[]?; .type == "Ready" and .status == "True"))
+  | .metadata.name
+')"
+[[ -n "${ready_pods}" ]] || fail "No current operator-artifacts pod is Running and Ready."
 
-bad_pods="$(printf '%s\n' "${pods_json}" | jq -r '
+bad_pods="$(printf '%s\n' "${current_pods_json}" | jq -r '
   .items[]?
   | {
       name: .metadata.name,
@@ -134,7 +170,11 @@ bad_pods="$(printf '%s\n' "${pods_json}" | jq -r '
   | select(.phase != "Running" or .phase == "Error" or .phase == "Pending" or .ready != "True" or .waiting_reason == "CrashLoopBackOff")
   | .name
 ')"
-[[ -z "${bad_pods}" ]] || fail "One or more operator-artifacts pods are not Running, Error, Pending, CrashLoopBackOff, or not Ready."
+if [[ -n "${bad_pods}" ]]; then
+  echo "Current pods failing readiness checks:" >&2
+  printf '%s\n' "${bad_pods}" | sed 's/^/  /' >&2
+  fail "One or more current operator-artifacts pods are Pending, Error, CrashLoopBackOff, not Running, or not Ready."
+fi
 
 kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get middleware "${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}" \
   -o custom-columns='NAME:.metadata.name' \
