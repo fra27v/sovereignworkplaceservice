@@ -17,4 +17,8 @@ Local `.env` files are bootstrap, import, and recovery material only. Do not com
 
 In-cluster sync uses OpenBao Kubernetes auth. Do not store static OpenBao tokens in Kubernetes Secrets.
 
-Operator PKI is the next phase. The current scripts do not create an Operator CA and do not expose `operator-vault`.
+Operator PKI, operator-vault runtime TLS, and the explicit
+`--operator-vault-public-endpoint` phase are wired through the environment
+bootstrap script. The public endpoint uses Traefik TCP passthrough with
+MiddlewareTCP `ipAllowList`; OpenBao terminates TLS and still requires OpenBao
+authentication.

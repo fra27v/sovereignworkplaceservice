@@ -4,7 +4,10 @@ This runbook documents the initial Traefik DNS-01 OVH skeleton for the `vps-fami
 
 `operator-artifacts.<domain>` will use Let's Encrypt DNS-01 because it is an HTTPS artifact delivery endpoint.
 
-`operator-vault.<domain>` will not use Let's Encrypt. The operator vault endpoint remains private Operator PKI with TLS terminated by OpenBao.
+`operator-vault.<domain>` does not use Let's Encrypt. It is exposed, when the
+explicit endpoint phase is run, through Traefik TCP passthrough with TLS
+terminated by OpenBao and source access restricted by MiddlewareTCP
+`ipAllowList`.
 
 ## Credential Model
 
@@ -55,7 +58,8 @@ Set this in the real ACME DNS-01 env file:
 TRAEFIK_SERVICE_EXTERNAL_TRAFFIC_POLICY="Local"
 ```
 
-`Local` is required for `operator-artifacts` IPAllowList behavior. If the live
+`Local` is required for `operator-artifacts` and operator-vault IPAllowList
+behavior. If the live
 Service remains `externalTrafficPolicy=Cluster`, Traefik may see an internal
 cluster source IP instead of the real client source IP, and allowlist decisions
 can fail.
@@ -75,7 +79,8 @@ to the expected `externalTrafficPolicy` value before printing follow-up
 verification commands.
 
 `externalTrafficPolicy=Local` is required and preferred here because the
-operator-artifacts IPAllowList must evaluate the real client source IP. A normal
+operator-artifacts and operator-vault IPAllowLists must evaluate the real
+client source IP. A normal
 curl from the VPS to the public FQDN is not a localhost test; it may leave the
 host, return through the public path, and correctly receive HTTP `403` if the
 VPS public egress IP is not allowlisted.

@@ -74,10 +74,12 @@ OpenBao issue endpoint, the issuance JSON is not saved, and the leaf private
 key is installed only as `OPENBAO_TLS_DIR/tls.key`. The CA private key remains
 inside OpenBao. This operation restarts only `openbao-global-0`.
 
-This does not expose `operator-vault` publicly. Traefik TCP passthrough and
-Tenant OpenBao remain later phases. The `--operator-vault-tls` bootstrap phase
-is intentionally explicit and is not included in `--all` yet because it rotates
-OpenBao runtime TLS and restarts only `openbao-global-0`.
+The `--operator-vault-public-endpoint` phase exposes `operator-vault` through
+Traefik TCP passthrough on `operator-vault.${OPERATOR_DOMAIN}`. OpenBao
+terminates TLS with the Operator CA-issued certificate; Traefik does not use
+Let's Encrypt, an HTTP IngressRoute, or a Kubernetes TLS Secret for this route.
+Network access is restricted by Traefik MiddlewareTCP `ipAllowList`, and
+OpenBao authentication remains mandatory.
 
 The exported Operator CA bundle is the future trust source for in-cluster
 clients such as `operator-secret-sync`. The sync runner image is still not
@@ -85,4 +87,5 @@ selected, and the sync Job remains blocked by install preflight until a pinned
 standard runner image is validated.
 
 Do not run a destructive reinstall test until Operator PKI, operator-vault TLS,
-artifact publication, and final debug points are complete.
+operator-vault public endpoint, artifact publication, and final debug points are
+complete.

@@ -27,3 +27,18 @@ scripts/configure-openbao-global-operator-kv.sh --env-file ../operator-plane.env
 The script is idempotent. It creates `operator-kv/` only when missing, verifies
 an existing mount is KV v2, uses the in-pod `bao` CLI, and does not require
 host-side `bao`.
+
+Expose the public operator-vault endpoint only through:
+
+```bash
+scripts/install-operator-vault-public-endpoint.sh --env-file ../operator-plane.env --dry-run
+scripts/install-operator-vault-public-endpoint.sh --env-file ../operator-plane.env
+scripts/verify-operator-vault-public-endpoint.sh --env-file ../operator-plane.env
+```
+
+The endpoint uses Traefik `IngressRouteTCP` with TLS passthrough to
+`openbao-global:8200`. OpenBao terminates TLS with the Operator CA-issued
+runtime certificate. Clients must verify the server with
+`OPERATOR_PKI_PUBLIC_DIR/operator-ca-bundle.pem`. The CA bundle is trust
+material, not an access restriction; Traefik MiddlewareTCP `ipAllowList` is the
+network restriction, and OpenBao auth remains required.

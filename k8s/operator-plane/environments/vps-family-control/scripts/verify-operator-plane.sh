@@ -331,7 +331,6 @@ print_todos() {
   if [[ "${verify_status["operator-vault TLS runtime"]:-unknown}" != "pass" ]]; then
     warn "operator-vault TLS rotation is explicit and may not have been run yet"
   fi
-  warn "operator-vault public endpoint is not implemented yet"
 }
 
 print_summary() {
@@ -391,6 +390,7 @@ run_verify_script "Global OpenBao audit" "${env_dir}/openbao/scripts/verify-open
 run_verify_script "Global OpenBao transit" "${env_dir}/openbao/scripts/verify-openbao-global-transit.sh" --env-file "${env_file}"
 run_verify_script "Operator PKI" "${env_dir}/operator-pki/scripts/verify-openbao-operator-pki.sh" "warn" --env-file "${env_file}"
 run_verify_script "operator-vault TLS runtime" "${env_dir}/operator-pki/scripts/verify-operator-vault-tls-runtime.sh" "warn" --env-file "${env_file}"
+run_verify_script "operator-vault public endpoint" "${env_dir}/openbao/scripts/verify-operator-vault-public-endpoint.sh" --env-file "${env_file}"
 
 check_k3s_node_ready
 check_trading_namespace

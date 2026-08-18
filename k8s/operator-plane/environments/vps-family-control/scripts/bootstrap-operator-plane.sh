@@ -15,6 +15,7 @@ run_operator_secret_sync_job="false"
 run_operator_artifacts="false"
 run_operator_pki="false"
 run_operator_vault_tls="false"
+run_operator_vault_public_endpoint="false"
 run_openbao_operator_kv="false"
 run_openbao_transit_configure="false"
 
@@ -24,7 +25,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--openbao-operator-kv] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync-job] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--openbao-operator-kv] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync-job] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--operator-vault-public-endpoint] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -42,6 +43,7 @@ Options:
   --operator-artifacts               Run operator-artifacts bootstrap.
   --operator-pki                     Configure and verify Operator PKI foundation.
   --operator-vault-tls               Issue and install operator-vault runtime TLS, then restart OpenBao.
+  --operator-vault-public-endpoint   Reconcile Traefik TCP passthrough endpoint for operator-vault.
   --env-file <path>                  Path to the central operator-plane.env file.
   --dry-run                          Print commands without running component scripts.
   --help                             Show this help.
@@ -68,6 +70,8 @@ Safety:
     operator-artifacts installer in server-side dry-run mode.
   - --operator-vault-tls is intentionally explicit because it rotates runtime
     TLS and restarts only the configured OpenBao pod.
+  - --operator-vault-public-endpoint is explicit. It uses Traefik TCP
+    passthrough; OpenBao terminates TLS and still requires OpenBao auth.
 EOF
 }
 
@@ -279,8 +283,8 @@ phase_operator_pki() {
 
   cat <<'EOF'
 Safe TODO:
-  - run --operator-vault-tls as the next explicit phase when ready
-  - keep operator-vault private and do not expose it publicly yet
+  - run --operator-vault-tls before exposing the public endpoint
+  - run --operator-vault-public-endpoint only after the TLS SANs are verified
 EOF
 
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
@@ -304,6 +308,25 @@ EOF
 
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "operator-vault TLS phase completed"
+  fi
+}
+
+phase_operator_vault_public_endpoint() {
+  echo
+  echo "== operator-vault public endpoint =="
+  local openbao_scripts="${env_dir}/openbao/scripts"
+  local fail_count_before="${#summary_fail[@]}"
+  local args=(--env-file "${env_file}")
+
+  if [[ "${dry_run}" = "true" ]]; then
+    args+=(--dry-run)
+  fi
+
+  echo "TLS passthrough is used; OpenBao terminates TLS and OpenBao authentication remains required."
+  run_if_executable "operator-vault public endpoint install" "${openbao_scripts}/install-operator-vault-public-endpoint.sh" "true" "${args[@]}"
+
+  if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
+    ok "operator-vault public endpoint phase completed"
   fi
 }
 
@@ -380,6 +403,9 @@ while [[ "$#" -gt 0 ]]; do
     --operator-vault-tls)
       run_operator_vault_tls="true"
       ;;
+    --operator-vault-public-endpoint)
+      run_operator_vault_public_endpoint="true"
+      ;;
     --openbao-transit-configure)
       run_openbao_transit_configure="true"
       ;;
@@ -407,7 +433,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_openbao_operator_kv}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync_foundation}" != "true" && "${run_operator_secret_sync_runner_image}" != "true" && "${run_operator_secret_sync_job}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_openbao_operator_kv}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync_foundation}" != "true" && "${run_operator_secret_sync_runner_image}" != "true" && "${run_operator_secret_sync_job}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" && "${run_operator_vault_public_endpoint}" != "true" ]]; then
   usage >&2
   exit 1
 fi
@@ -440,6 +466,10 @@ fi
 
 if [[ "${run_operator_vault_tls}" = "true" ]]; then
   phase_operator_vault_tls
+fi
+
+if [[ "${run_operator_vault_public_endpoint}" = "true" ]]; then
+  phase_operator_vault_public_endpoint
 fi
 
 phase_summary
