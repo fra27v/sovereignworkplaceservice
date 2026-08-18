@@ -7,6 +7,8 @@ env_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control"
 artifacts_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control/operator-artifacts"
 env_file="${env_dir}/operator-plane.env"
 env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
+image_helper="${script_dir}/lib/resolve-operator-artifacts-image.sh"
+lock_file="${env_dir}/dependencies.lock.json"
 render_script="${script_dir}/render-operator-artifacts.sh"
 rendered_file="$(mktemp /tmp/operator-artifacts.install.XXXXXX.yaml)"
 chmod 0600 "${rendered_file}"
@@ -64,8 +66,11 @@ done
 
 [[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
 [[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
+[[ -f "${image_helper}" ]] || fail "Missing operator-artifacts image resolver: ${image_helper}"
 # shellcheck source=lib/load-operator-artifacts-config.sh
 source "${env_helper}"
+# shellcheck source=lib/resolve-operator-artifacts-image.sh
+source "${image_helper}"
 load_operator_artifacts_env "${env_file}" "true"
 
 required_vars=(
@@ -80,6 +85,8 @@ required_vars=(
 for var_name in "${required_vars[@]}"; do
   require_var "${var_name}"
 done
+
+expected_container_image="$(resolve_operator_artifacts_image "${lock_file}")"
 
 "${render_script}" --env-file "${env_file}" --output "${rendered_file}"
 
@@ -119,7 +126,8 @@ pods_json="$(kubectl -n "${OPERATOR_ARTIFACTS_NAMESPACE}" get pods \
   -o json)"
 
 container_image="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .image')"
-[[ "${container_image}" = "nginxinc/nginx-unprivileged:stable-alpine" ]] || fail "Unexpected nginx container image: ${container_image}"
+[[ "${container_image}" = *@sha256:* ]] || fail "Nginx container image is not digest-pinned: ${container_image}"
+[[ "${container_image}" = "${expected_container_image}" ]] || fail "Unexpected nginx container image: ${container_image}"
 echo "Container image: ${container_image}"
 
 container_port="$(printf '%s\n' "${deployment_json}" | jq -r '.spec.template.spec.containers[]? | select(.name == "nginx") | .ports[]? | select(.name == "http") | .containerPort')"

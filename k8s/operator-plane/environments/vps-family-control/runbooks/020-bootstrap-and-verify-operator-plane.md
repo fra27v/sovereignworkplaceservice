@@ -85,6 +85,12 @@ the operator-secret-sync runner, are updated by changing the dependency
 lock and the consuming manifest together. Custom images require an explicit ADR
 before introduction.
 
+The operator-artifacts nginx runtime image is digest-pinned in
+`dependencies.lock.json`. The operator-artifacts renderer consumes that lock
+entry and renders `tag@sha256` into the Deployment. Updating nginx requires
+resolving a new trusted registry digest and committing the lockfile plus
+consumer change before redeploying from Git state.
+
 Note: the Global OpenBao transit configure entrypoint is idempotent and will
 reconcile missing transit keys or policy state without overwriting an existing
 tenant token JSON. The configure script will not print token material.
@@ -361,6 +367,10 @@ pod must not install packages at runtime. Future vulnerability management means
 updating the pinned image reference and rerunning the Kubernetes contract
 check; changing sync logic updates the script and generated ConfigMap, not the
 image.
+
+The same no-runtime-package-install rule applies to operator-artifacts nginx:
+update the pinned image reference in Git instead of installing packages in the
+running container.
 
 Verify the dependency lock without touching live state:
 

@@ -7,6 +7,8 @@ env_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control"
 artifacts_dir="${repo_root}/k8s/operator-plane/environments/vps-family-control/operator-artifacts"
 env_file="${env_dir}/operator-plane.env"
 env_helper="${script_dir}/lib/load-operator-artifacts-config.sh"
+image_helper="${script_dir}/lib/resolve-operator-artifacts-image.sh"
+lock_file="${env_dir}/dependencies.lock.json"
 template_file="${artifacts_dir}/manifests/operator-artifacts.yaml.tpl"
 keep_output="false"
 explicit_output="false"
@@ -70,6 +72,7 @@ render_template() {
     -e "s|\${OPERATOR_ARTIFACTS_TLS_CERT_RESOLVER}|${OPERATOR_ARTIFACTS_TLS_CERT_RESOLVER}|g" \
     -e "s|\${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}|${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}|g" \
     -e "s|\${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}|${OPERATOR_ARTIFACTS_IP_ALLOWLIST_MIDDLEWARE_NAME}|g" \
+    -e "s|\${OPERATOR_ARTIFACTS_NGINX_IMAGE}|${OPERATOR_ARTIFACTS_NGINX_IMAGE}|g" \
     -e "s|\${OPERATOR_ARTIFACTS_BASICAUTH_USERS_PLACEHOLDER}|${OPERATOR_ARTIFACTS_BASICAUTH_USERS}|g" \
     "${template_file}" \
     | awk -v ranges="${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES_YAML}" '
@@ -116,10 +119,14 @@ done
 
 [[ -f "${env_file}" ]] || fail "Missing central operator-plane env file: ${env_file}"
 [[ -f "${env_helper}" ]] || fail "Missing operator-artifacts config helper: ${env_helper}"
+[[ -f "${image_helper}" ]] || fail "Missing operator-artifacts image resolver: ${image_helper}"
 [[ -f "${template_file}" ]] || fail "Missing template file: ${template_file}"
+command -v jq >/dev/null 2>&1 || fail "Missing required command: jq"
 
 # shellcheck source=lib/load-operator-artifacts-config.sh
 source "${env_helper}"
+# shellcheck source=lib/resolve-operator-artifacts-image.sh
+source "${image_helper}"
 load_operator_artifacts_env "${env_file}" "true"
 
 required_vars=(
@@ -143,6 +150,7 @@ done
 htpasswd_file="${OPERATOR_ARTIFACTS_PRIVATE_DIR}/tokens/${OPERATOR_ARTIFACTS_TENANT_NAME}.htpasswd"
 [[ -s "${htpasswd_file}" ]] || fail "Missing or empty htpasswd file: ${htpasswd_file}"
 
+OPERATOR_ARTIFACTS_NGINX_IMAGE="$(resolve_operator_artifacts_image "${lock_file}")"
 OPERATOR_ARTIFACTS_BASICAUTH_USERS="$(yaml_escape_double_quoted < "${htpasswd_file}")"
 compact_allowed_source_ranges="${OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES//[[:space:]]/}"
 [[ -n "${compact_allowed_source_ranges}" ]] || fail "OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES must not be empty."
@@ -165,6 +173,7 @@ echo "Namespace: ${OPERATOR_ARTIFACTS_NAMESPACE}"
 echo "Service name: ${OPERATOR_ARTIFACTS_SERVICE_NAME}"
 echo "Public hostname: configured"
 echo "Public directory: ${OPERATOR_ARTIFACTS_PUBLIC_DIR}"
+echo "Nginx image: ${OPERATOR_ARTIFACTS_NGINX_IMAGE}"
 echo "BasicAuth Secret name: ${OPERATOR_ARTIFACTS_BASICAUTH_SECRET_NAME}"
 echo "IP allowlist: configured with ${source_range_count} source ranges"
 echo "The htpasswd contents were not printed."

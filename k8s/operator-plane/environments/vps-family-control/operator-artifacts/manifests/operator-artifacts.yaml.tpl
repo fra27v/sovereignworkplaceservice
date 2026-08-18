@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginxinc/nginx-unprivileged:stable-alpine
+          image: ${OPERATOR_ARTIFACTS_NGINX_IMAGE}
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

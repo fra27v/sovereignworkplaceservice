@@ -53,8 +53,10 @@ OpenBao, update `openbao/openbao` chart/app versions in
 the same change.
 
 Repository-managed images are updated by changing the lock plus the manifest or
-Job template that consumes the image. Future update phases apply those manifest
-changes to the cluster.
+Job template that consumes the image. Active repository-managed workloads, such
+as operator-artifacts nginx, must render the tag plus digest from
+`dependencies.lock.json` and must not silently fall back to floating tags.
+Future update phases apply those manifest changes to the cluster.
 
 Validate-then-enable-Job dependencies, such as the operator-secret-sync runner
 image, must be validated before Job execution. The validation phase does

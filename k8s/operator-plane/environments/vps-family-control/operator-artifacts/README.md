@@ -21,7 +21,8 @@ Validated behavior for this environment:
 - Allowed home IP without credentials returns HTTP `401`.
 - Non-allowed public path returns HTTP `403`.
 - Normal curl from the VPS to the public FQDN is not a localhost test.
-- Backend image is `nginxinc/nginx-unprivileged:stable-alpine`.
+- Backend image uses repository `nginxinc/nginx-unprivileged` with tag
+  `stable-alpine`, pinned by digest from `../dependencies.lock.json`.
 - Container listens on `8080`; Service exposes port `80`.
 - Public artifacts are mounted read-only.
 - The private artifact directory is not mounted.
@@ -55,5 +56,11 @@ If the home public IP changes, update `OPERATOR_ARTIFACTS_ALLOWED_SOURCE_RANGES`
 in `operator-plane.env` and redeploy. If the token is rotated, regenerate
 htpasswd and reapply the deployment. Let's Encrypt renewals depend on OVH
 DNS-01 credentials.
+
+The operator-artifacts nginx runtime image is repository-managed and
+digest-pinned in `../dependencies.lock.json`. Updating it requires resolving a
+new trusted registry digest, updating the lockfile and rendered manifest
+consumer in the same Git change, and redeploying from committed Git state. Do
+not use floating tags without a digest and do not install packages at runtime.
 
 Do not paste tokens, htpasswd contents, Kubernetes Secret data, or rendered manifests.

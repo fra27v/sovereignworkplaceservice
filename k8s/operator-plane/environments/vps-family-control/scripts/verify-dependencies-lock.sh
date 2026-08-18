@@ -136,6 +136,27 @@ validate_digest() {
   fi
 }
 
+validate_image_digest_reference() {
+  local id="$1"
+  local image="$2"
+  local digest="$3"
+
+  if [[ "${image}" != *@sha256:* ]]; then
+    return 0
+  fi
+
+  if [[ "${image}" =~ @sha256:[0-9a-f]{64}$ ]]; then
+    ok "Image reference is digest-pinned for ${id}"
+  else
+    fail "Malformed image digest reference for ${id}: ${image}"
+    return 0
+  fi
+
+  if [[ -n "${digest}" && "${digest}" != "null" && "${image}" != *"@${digest}" ]]; then
+    fail "Image digest reference does not match digest field for ${id}"
+  fi
+}
+
 validate_runtime_image() {
   local json="$1"
   local id image status update_flow digest tag
@@ -160,6 +181,8 @@ validate_runtime_image() {
 
   if [[ "${tag}" = "latest" ]]; then
     fail "Runtime image ${id} uses forbidden :latest tag: ${image}"
+  elif [[ "${image}" == *@sha256:* ]]; then
+    ok "Runtime image ${id} is digest-pinned: ${image}"
   elif [[ -n "${tag}" ]] && is_floating_tag "${tag}"; then
     if [[ "${status}" = "needs-pinning" ]]; then
       warn "Runtime image ${id} uses floating tag and is marked needs-pinning: ${image}"
@@ -181,6 +204,7 @@ validate_runtime_image() {
   fi
 
   validate_digest "${id}" "${digest}"
+  validate_image_digest_reference "${id}" "${image}" "${digest}"
 }
 
 validate_runtime_images() {

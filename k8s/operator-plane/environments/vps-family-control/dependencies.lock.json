@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "environment": "vps-family-control",
-  "lastReviewed": "2026-07-08",
+  "lastReviewed": "2026-08-18",
   "policy": {
     "rejectLatest": true,
     "requireDigestForRuntimeJobs": true,
@@ -74,11 +74,14 @@
       "id": "operator-artifacts-nginx",
       "workload": "operator-artifacts",
       "namespace": "operator-artifacts",
-      "image": "nginxinc/nginx-unprivileged:stable-alpine",
-      "digest": null,
-      "status": "needs-pinning",
+      "repository": "nginxinc/nginx-unprivileged",
+      "tag": "stable-alpine",
+      "image": "nginxinc/nginx-unprivileged:stable-alpine@sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49",
+      "digest": "sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49",
+      "effectiveImage": "nginxinc/nginx-unprivileged:stable-alpine@sha256:44e36330f74d4f3a1d4e222acca9e23b401fb87811a7597024502bb759c4dd49",
+      "status": "pinned",
       "updateFlow": "repository-manifest",
-      "reason": "Existing operator-artifacts runtime image; floating stable-alpine tag must be pinned in a later phase."
+      "reason": "operator-artifacts nginx runtime image pinned by OCI index digest resolved from Docker Hub registry metadata."
     },
     {
       "id": "operator-secret-sync-runner-candidate",
