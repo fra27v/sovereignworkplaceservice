@@ -142,7 +142,7 @@ ensure_kv_mount() {
     return 0
   fi
 
-  fail "OpenBao KV v2 mount is missing: ${kv_mount}/"
+  fail "OpenBao KV v2 mount is missing: ${kv_mount}/. Run: bootstrap-operator-plane.sh --openbao-operator-kv"
 }
 
 ensure_targets_writable() {
@@ -300,6 +300,7 @@ root_token="$(jq -r '.root_token // empty' "${init_file}")"
 
 ensure_openbao_pod_ready
 ensure_openbao_unsealed
+ensure_kv_mount
 
 if [[ "${dry_run}" = "true" ]]; then
   echo "Env file: ${env_file}"
@@ -317,7 +318,6 @@ if [[ "${dry_run}" = "true" ]]; then
   exit 0
 fi
 
-ensure_kv_mount
 ensure_targets_writable
 
 tmp_dir="$(mktemp -d)"

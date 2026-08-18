@@ -15,3 +15,15 @@ Operators should prepare, render, and install Global OpenBao in this order:
 3. `scripts/install-openbao-global.sh`
 
 Do not initialize OpenBao from the install script.
+
+After Global OpenBao is initialized and Operator PKI has installed the Operator
+CA bundle in the OpenBao pod, enable the operator-plane source-of-truth KV v2
+mount with:
+
+```bash
+scripts/configure-openbao-global-operator-kv.sh --env-file ../operator-plane.env
+```
+
+The script is idempotent. It creates `operator-kv/` only when missing, verifies
+an existing mount is KV v2, uses the in-pod `bao` CLI, and does not require
+host-side `bao`.

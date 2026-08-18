@@ -78,6 +78,14 @@ The sync script reads:
 - `operator-kv/operator-plane/traefik/ovh-dns01`
 - `operator-kv/operator-plane/operator-artifacts/family-infra-01`
 
+The `operator-kv/` mount must exist in Global OpenBao as KV v2 before
+bootstrap secrets are imported or the real sync Job preflight is run. Configure
+it with:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --openbao-operator-kv
+```
+
 It creates or updates:
 
 - `kube-system/traefik-ovh-dns-credentials`

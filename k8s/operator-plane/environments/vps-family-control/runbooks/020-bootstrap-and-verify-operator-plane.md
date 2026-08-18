@@ -67,6 +67,7 @@ The bootstrap entrypoint currently supports:
 
 - Traefik ACME DNS-01 OVH setup
 - Global OpenBao baseline verification
+- Global OpenBao `operator-kv` KV v2 mount configuration
 - OpenBao CA bundle projection into operator-secret-sync namespace
 - operator-secret-sync foundation without running the sync Job
 - operator-secret-sync runner image validation without running the sync Job
@@ -87,6 +88,12 @@ before introduction.
 Note: the Global OpenBao transit configure entrypoint is idempotent and will
 reconcile missing transit keys or policy state without overwriting an existing
 tenant token JSON. The configure script will not print token material.
+
+The `--openbao-operator-kv` phase enables the versioned `operator-kv/` KV v2
+mount in Global OpenBao when it is missing. It is idempotent, uses the `bao`
+CLI inside the configured Global OpenBao pod, and uses the Operator CA bundle
+inside the pod for client trust. It fails if `operator-kv/` exists but is not
+KV v2.
 
 Operator PKI bootstrap configures the OpenBao PKI mount, Operator CA,
 `operator-vault` issuance role, and public CA bundle export. The separate
@@ -194,6 +201,18 @@ Preview the operator-secret-sync phase:
 sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --operator-secret-sync-foundation --dry-run
 ```
 
+Preview the operator KV mount phase:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --openbao-operator-kv --dry-run
+```
+
+Run the operator KV mount phase before importing bootstrap secrets:
+
+```bash
+sudo ./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --openbao-operator-kv
+```
+
 Preview the runner image validation phase:
 
 ```bash
@@ -274,6 +293,15 @@ phases without false WARN statuses due to missing executable bits.
 ## Secret Authority
 
 Global OpenBao KV is the operator-plane source of truth for secrets and sensitive runtime configuration.
+
+The bootstrap sequence for operator-plane secret projection is:
+
+1. Install and initialize Global OpenBao.
+2. Configure Operator PKI and install the Operator CA bundle in the OpenBao pod.
+3. Enable the Global OpenBao `operator-kv/` KV v2 mount with `--openbao-operator-kv`.
+4. Import bootstrap secrets into `operator-kv/`.
+5. Run operator-secret-sync preflight.
+6. Run the explicit operator-secret-sync Job phase.
 
 Global OpenBao also hosts the Operator PKI/CA as OpenBao-managed PKI state, not
 KV data. The CA private key remains inside OpenBao. The first Operator PKI

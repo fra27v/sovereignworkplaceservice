@@ -4,6 +4,21 @@ set -euo pipefail
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 env_dir="$(cd -- "${script_dir}/.." && pwd)"
 env_file="${env_dir}/operator-plane.env"
+env_loader="${env_dir}/scripts/lib/load-operator-plane-env.sh"
+
+openbao_namespace="openbao-operator"
+openbao_pod_name="openbao-global-0"
+openbao_kv_mount="operator-kv"
+vault_addr="https://127.0.0.1:8200"
+bao_addr="${vault_addr}"
+vault_cacert=""
+
+required_openbao_env_keys=(
+  OPENBAO_NAMESPACE
+  OPENBAO_POD_NAME
+  OPENBAO_BOOTSTRAP_INIT_FILE
+  OPENBAO_TLS_DIR
+)
 
 summary_ok=()
 summary_warn=()
@@ -91,6 +106,23 @@ kubectl_safe() {
 
 kubectl_available() {
   command -v kubectl >/dev/null 2>&1
+}
+
+token_exec() {
+  local token="$1"
+  shift
+
+  printf '%s' "${token}" | kubectl -n "${openbao_namespace}" exec -i "${openbao_pod_name}" -- \
+    sh -c '
+      IFS= read -r BAO_TOKEN
+      [ -r "$2" ] || {
+        echo "ERROR: OpenBao Operator CA bundle is missing or unreadable inside the pod: $2" >&2
+        exit 1
+      }
+      export BAO_TOKEN VAULT_TOKEN="$BAO_TOKEN" VAULT_ADDR="$1" VAULT_CACERT="$2" BAO_ADDR="$3" BAO_CACERT="$2"
+      shift 3
+      "$@"
+    ' sh "${vault_addr}" "${vault_cacert}" "${bao_addr}" "$@"
 }
 
 check_k3s_node_ready() {
@@ -205,6 +237,94 @@ check_openbao_pod() {
   fi
 }
 
+check_openbao_operator_kv_mount() {
+  echo
+  echo "== Global OpenBao operator KV =="
+  local init_file root_token status_output secrets_json type version phase ready
+
+  if ! kubectl_available; then
+    fail_component "kubectl is required for OpenBao operator KV verification"
+    return 0
+  fi
+
+  if ! command -v jq >/dev/null 2>&1; then
+    fail_component "jq is required for OpenBao operator KV verification"
+    return 0
+  fi
+
+  if [[ ! -s "${env_loader}" ]]; then
+    fail_component "operator-plane env loader is missing: ${env_loader}"
+    return 0
+  fi
+
+  # shellcheck source=lib/load-operator-plane-env.sh
+  source "${env_loader}"
+  if ! load_operator_plane_env "${env_file}" "true" "${required_openbao_env_keys[@]}"; then
+    fail_component "could not load OpenBao settings from operator-plane.env"
+    return 0
+  fi
+
+  openbao_namespace="${OPENBAO_NAMESPACE}"
+  openbao_pod_name="${OPENBAO_POD_NAME}"
+  vault_cacert="$(operator_plane_env_openbao_client_cacert_in_pod)"
+
+  if ! kubectl_safe -n "${openbao_namespace}" get pod "${openbao_pod_name}" >/dev/null; then
+    fail_component "Global OpenBao pod is missing: ${openbao_namespace}/${openbao_pod_name}"
+    return 0
+  fi
+
+  phase="$(kubectl_safe -n "${openbao_namespace}" get pod "${openbao_pod_name}" -o jsonpath='{.status.phase}' || true)"
+  ready="$(kubectl_safe -n "${openbao_namespace}" get pod "${openbao_pod_name}" -o jsonpath='{range .status.conditions[?(@.type=="Ready")]}{.status}{end}' || true)"
+  if [[ "${phase}" != "Running" || "${ready}" != "True" ]]; then
+    fail_component "Global OpenBao pod is not Running/Ready: ${openbao_namespace}/${openbao_pod_name}"
+    return 0
+  fi
+
+  if ! init_file="$(operator_plane_env_resolve_openbao_bootstrap_init_file)"; then
+    fail_component "could not resolve OpenBao bootstrap init file"
+    return 0
+  fi
+
+  root_token="$(jq -r '.root_token // empty' "${init_file}")"
+  if [[ -z "${root_token}" ]]; then
+    fail_component "could not read root token from OpenBao bootstrap init file"
+    return 0
+  fi
+
+  if ! status_output="$(token_exec "${root_token}" bao status)"; then
+    fail_component "could not run bao status inside ${openbao_namespace}/${openbao_pod_name}"
+    return 0
+  fi
+
+  if ! printf '%s\n' "${status_output}" | grep -q 'Initialized[[:space:]]*true'; then
+    fail_component "Global OpenBao is not initialized"
+    return 0
+  fi
+
+  if ! printf '%s\n' "${status_output}" | grep -q 'Sealed[[:space:]]*false'; then
+    fail_component "Global OpenBao is sealed"
+    return 0
+  fi
+
+  if ! secrets_json="$(token_exec "${root_token}" bao secrets list -format=json)"; then
+    fail_component "could not list OpenBao secrets engines"
+    return 0
+  fi
+
+  if ! printf '%s\n' "${secrets_json}" | jq -e --arg mount "${openbao_kv_mount}/" 'has($mount)' >/dev/null; then
+    fail_component "OpenBao KV v2 mount is missing: ${openbao_kv_mount}/"
+    return 0
+  fi
+
+  type="$(printf '%s\n' "${secrets_json}" | jq -r --arg mount "${openbao_kv_mount}/" '.[$mount].type')"
+  version="$(printf '%s\n' "${secrets_json}" | jq -r --arg mount "${openbao_kv_mount}/" '.[$mount].options.version // ""')"
+  if [[ "${type}" = "kv" && "${version}" = "2" ]]; then
+    ok "OpenBao KV v2 mount exists: ${openbao_kv_mount}/"
+  else
+    fail_component "OpenBao mount ${openbao_kv_mount}/ is type=${type} version=${version:-unset}, expected kv-v2"
+  fi
+}
+
 print_todos() {
   echo
   echo "== TODO =="
@@ -277,6 +397,7 @@ check_trading_namespace
 check_traefik_pod
 check_operator_artifacts_pod
 check_openbao_pod
+check_openbao_operator_kv_mount
 print_todos
 print_summary
 

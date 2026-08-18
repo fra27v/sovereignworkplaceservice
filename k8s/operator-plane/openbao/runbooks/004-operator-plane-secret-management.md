@@ -21,6 +21,13 @@ Initial operator-plane KV paths use the `operator-kv` KV v2 mount with explicit 
 - `operator-kv/operator-plane/operator-artifacts/family-infra-01`
 - `operator-kv/operator-plane/operator-artifacts/family-infra-01-config`
 
+Create the `operator-kv/` mount with the versioned environment bootstrap phase
+before importing bootstrap secrets:
+
+```bash
+./k8s/operator-plane/environments/vps-family-control/scripts/bootstrap-operator-plane.sh --openbao-operator-kv
+```
+
 The registry is versioned at `k8s/operator-plane/openbao/secret-registry/operator-plane-secrets.yaml`. It contains paths, schemas, expected key names, and projections only. It must not contain values.
 
 ## Runtime Kubernetes Secrets

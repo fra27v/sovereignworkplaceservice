@@ -15,6 +15,7 @@ run_operator_secret_sync_job="false"
 run_operator_artifacts="false"
 run_operator_pki="false"
 run_operator_vault_tls="false"
+run_openbao_operator_kv="false"
 run_openbao_transit_configure="false"
 
 summary_ok=()
@@ -23,7 +24,7 @@ summary_fail=()
 
 usage() {
   cat <<EOF
-Usage: $0 [--all] [--traefik] [--openbao] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync-job] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
+Usage: $0 [--all] [--traefik] [--openbao] [--openbao-operator-kv] [--operator-secret-sync-ca-bundle] [--operator-secret-sync-foundation] [--operator-secret-sync-runner-image] [--operator-secret-sync-job] [--operator-artifacts] [--operator-pki] [--operator-vault-tls] [--env-file <path>] [--dry-run]
 
 Bootstrap the vps-family-control operator plane by orchestrating validated
 component entrypoints.
@@ -32,6 +33,7 @@ Options:
   --all                              Run all currently supported phases.
   --traefik                          Run Traefik ACME DNS-01 OVH bootstrap.
   --openbao                          Run Global OpenBao baseline verification only.
+  --openbao-operator-kv              Configure the Global OpenBao operator-kv KV v2 mount.
   --operator-secret-sync-ca-bundle   Project OpenBao CA bundle into operator-secret-sync namespace.
   --operator-secret-sync-foundation  Install operator-secret-sync foundation without creating or running the Job.
   --operator-secret-sync-runner-image
@@ -59,6 +61,8 @@ Safety:
     runtime Secrets.
   - --all currently includes only supported foundation phases and does not
     enable the real operator-secret-sync Job or runner-image validation phase.
+  - --openbao-operator-kv is explicit because it creates the versioned
+    operator-plane source-of-truth KV mount in Global OpenBao.
   - --operator-secret-sync-job is explicit and runs only when requested.
   - --operator-vault-tls is intentionally explicit because it rotates runtime
     TLS and restarts only the configured OpenBao pod.
@@ -174,6 +178,24 @@ EOF
   fi
   if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
     ok "Global OpenBao phase completed"
+  fi
+}
+
+phase_openbao_operator_kv() {
+  echo
+  echo "== Global OpenBao operator KV =="
+  local openbao_scripts="${env_dir}/openbao/scripts"
+  local fail_count_before="${#summary_fail[@]}"
+  local args=(--env-file "${env_file}")
+
+  if [[ "${dry_run}" = "true" ]]; then
+    args+=(--dry-run)
+  fi
+
+  run_if_executable "Global OpenBao operator KV configure" "${openbao_scripts}/configure-openbao-global-operator-kv.sh" "true" "${args[@]}"
+
+  if [[ "${#summary_fail[@]}" -eq "${fail_count_before}" ]]; then
+    ok "Global OpenBao operator KV phase completed"
   fi
 }
 
@@ -299,6 +321,7 @@ while [[ "$#" -gt 0 ]]; do
     --all)
       run_traefik="true"
       run_openbao="true"
+      run_openbao_operator_kv="true"
       run_operator_secret_sync_ca_bundle="true"
       run_operator_secret_sync_foundation="true"
       run_operator_secret_sync_runner_image="false"
@@ -311,6 +334,9 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --openbao)
       run_openbao="true"
+      ;;
+    --openbao-operator-kv)
+      run_openbao_operator_kv="true"
       ;;
     --operator-secret-sync-ca-bundle)
       run_operator_secret_sync_ca_bundle="true"
@@ -360,7 +386,7 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync_foundation}" != "true" && "${run_operator_secret_sync_runner_image}" != "true" && "${run_operator_secret_sync_job}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
+if [[ "${run_traefik}" != "true" && "${run_openbao}" != "true" && "${run_openbao_operator_kv}" != "true" && "${run_operator_secret_sync_ca_bundle}" != "true" && "${run_operator_secret_sync_foundation}" != "true" && "${run_operator_secret_sync_runner_image}" != "true" && "${run_operator_secret_sync_job}" != "true" && "${run_operator_artifacts}" != "true" && "${run_operator_pki}" != "true" && "${run_operator_vault_tls}" != "true" ]]; then
   usage >&2
   exit 1
 fi
@@ -369,10 +395,6 @@ phase_prerequisites
 
 if [[ "${run_openbao}" = "true" ]]; then
   phase_openbao_global
-fi
-
-if [[ "${run_operator_secret_sync_job}" = "true" || "${run_operator_secret_sync_runner_image}" = "true" || "${run_operator_secret_sync_foundation}" = "true" || "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
-  phase_operator_secret_sync
 fi
 
 if [[ "${run_traefik}" = "true" ]]; then
@@ -385,6 +407,14 @@ fi
 
 if [[ "${run_operator_pki}" = "true" ]]; then
   phase_operator_pki
+fi
+
+if [[ "${run_openbao_operator_kv}" = "true" ]]; then
+  phase_openbao_operator_kv
+fi
+
+if [[ "${run_operator_secret_sync_job}" = "true" || "${run_operator_secret_sync_runner_image}" = "true" || "${run_operator_secret_sync_foundation}" = "true" || "${run_operator_secret_sync_ca_bundle}" = "true" ]]; then
+  phase_operator_secret_sync
 fi
 
 if [[ "${run_operator_vault_tls}" = "true" ]]; then
