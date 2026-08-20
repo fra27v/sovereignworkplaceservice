@@ -5,9 +5,11 @@ infrastructure.
 
 ## Current Scope
 
-The current scope includes the verified k3s baseline, the runtime Traefik
-instance, and environment tests:
+The current scope includes the Ubuntu host baseline for `family-infra-01`, the
+verified k3s baseline, the runtime Traefik instance, and environment tests:
 
+- host OS bootstrap documentation
+- idempotent host baseline apply and verify scripts
 - example k3s server configuration
 - config preparation script
 - k3s installation wrapper
@@ -22,6 +24,35 @@ Application migration remains out of scope for now.
 
 `family-infra.internal` must point to the k3s node. It is included in the k3s
 TLS SAN list so the node certificate can be used with that internal name.
+
+## Host Baseline
+
+The host baseline lives in `host/`.
+
+The expected operating system for `family-infra-01` is Ubuntu Server 26.04 LTS
+on x86_64/amd64. The host baseline scripts are optimized for Ubuntu Server
+26.04 LTS. Other Ubuntu releases are best-effort and
+`verify-host-baseline.sh` emits a `WARN` when the detected Ubuntu version does
+not match the expected target. Non-Ubuntu distributions are unsupported because
+the baseline relies on APT, unattended-upgrades, Ubuntu package and service
+conventions, AppArmor, and Ubuntu OpenSSH integration.
+
+It intentionally does not configure static IP addresses, Netplan, VLANs,
+Synology VMM networking, k3s, Traefik, OpenBao, IAM services, Nextcloud, or
+secrets.
+
+The required order is:
+
+```text
+Synology VMM
+  -> Ubuntu Server 26.04 LTS
+  -> manual bootstrap
+  -> host baseline apply
+  -> host baseline verify
+  -> k3s prepare
+  -> k3s install
+  -> k3s verify
+```
 
 ## Scripts
 
@@ -51,6 +82,9 @@ Environment tests are in `tests/`:
 
 ## Runbooks
 
+- `runbooks/001-bootstrap-host.md`
+- `runbooks/002-apply-host-baseline.md`
+- `runbooks/003-verify-host-baseline.md`
 - `runbooks/004-install-k3s.md`
 - `runbooks/005-install-traefik.md`
 - `runbooks/006-run-regression-tests.md`
@@ -63,4 +97,5 @@ Environment tests are in `tests/`:
 - regression suite OK
 
 Do not commit generated local files such as `/etc/rancher/k3s/config.yaml` or
-`/etc/rancher/k3s/k3s.yaml`.
+`/etc/rancher/k3s/k3s.yaml`. Do not commit SSH keys, deploy keys, tokens,
+passwords, certificates, kubeconfig files, or other secret material.
