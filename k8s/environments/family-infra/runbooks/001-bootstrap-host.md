@@ -151,12 +151,33 @@ Do not use a personal SSH key for the repository and do not enable write access.
 Verify GitHub's current SSH host key fingerprints against GitHub's official
 documentation before accepting them. Do not use `StrictHostKeyChecking=no`.
 
-After verifying the fingerprint out of band, record GitHub in `known_hosts`:
+Collect the host keys into a temporary file first:
 
 ```bash
-ssh-keyscan github.com >> ~/.ssh/known_hosts
+tmp_known_hosts="$(mktemp)"
+ssh-keyscan github.com > "${tmp_known_hosts}"
+ssh-keygen -lf "${tmp_known_hosts}"
+```
+
+Compare the displayed fingerprints with GitHub's official SSH host key
+fingerprints before continuing.
+
+Only after the fingerprints match, append the verified keys to `known_hosts`:
+
+```bash
+touch ~/.ssh/known_hosts
+ssh-keygen -R github.com -f ~/.ssh/known_hosts 2>/dev/null || true
+cat "${tmp_known_hosts}" >> ~/.ssh/known_hosts
+rm -f "${tmp_known_hosts}"
 chmod 0644 ~/.ssh/known_hosts
 ssh-keygen -F github.com
+```
+
+If the fingerprints do not match, do not append the keys and remove the
+temporary file:
+
+```bash
+rm -f "${tmp_known_hosts}"
 ```
 
 ## 6. Add a Dedicated SSH Alias for the Repository

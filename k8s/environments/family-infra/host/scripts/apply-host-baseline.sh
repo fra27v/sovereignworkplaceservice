@@ -185,6 +185,7 @@ parse_args() {
 validate_inputs() {
   [[ -n "${hostname_value}" ]] || fail "hostname must not be empty."
   [[ -n "${admin_user}" ]] || fail "--admin-user is required when it cannot be inferred from sudo."
+  [[ "${admin_user}" != "root" ]] || fail "--admin-user must be a non-root administrative account."
   is_integer_port "${ssh_port}" || fail "--ssh-port must be an integer from 1 to 65535."
 
   case "${update_policy}" in
@@ -205,6 +206,14 @@ validate_admin_ssh_access() {
   local authorized_keys_mode
 
   getent passwd "${admin_user}" >/dev/null || fail "Admin user does not exist: ${admin_user}"
+  if id -nG "${admin_user}" | tr ' ' '\n' | grep -Eq '^(sudo|admin|wheel)$'; then
+    info "Admin user ${admin_user} is a member of an administrative group."
+  elif command -v sudo >/dev/null 2>&1 && sudo -n -l -U "${admin_user}" >/dev/null 2>&1; then
+    info "Admin user ${admin_user} has sudo privileges."
+  else
+    fail "Admin user ${admin_user} is not sudo-capable."
+  fi
+
   user_home="$(getent passwd "${admin_user}" | cut -d: -f6)"
   [[ -n "${user_home}" && -d "${user_home}" ]] || fail "Admin user home directory is missing: ${admin_user}"
 
@@ -243,20 +252,37 @@ service_active_or_enabled() {
   systemctl is-active --quiet "${service_name}" 2>/dev/null || systemctl is-enabled --quiet "${service_name}" 2>/dev/null
 }
 
+service_active() {
+  local service_name="$1"
+  systemctl is-active --quiet "${service_name}" 2>/dev/null
+}
+
 unit_file_exists() {
   local service_name="$1"
   systemctl list-unit-files "${service_name}" --no-legend 2>/dev/null | awk -v service_name="${service_name}" '$1 == service_name { found=1 } END { exit found ? 0 : 1 }'
 }
 
+system_clock_synchronized() {
+  [[ "$(timedatectl show -p SystemClockSynchronized --value 2>/dev/null || true)" == "yes" ]]
+}
+
+ensure_chrony_active() {
+  if service_active_or_enabled systemd-timesyncd.service; then
+    info "Disabling systemd-timesyncd before enabling Chrony."
+    run_or_print systemctl disable --now systemd-timesyncd.service
+  fi
+  run_or_print systemctl enable --now chrony.service
+}
+
 configure_time_sync() {
   if command -v chronyc >/dev/null 2>&1 || unit_file_exists chrony.service; then
     info "Chrony is available; ensuring chrony.service is enabled and active."
-    run_or_print systemctl enable --now chrony.service
+    ensure_chrony_active
     return 0
   fi
 
-  if service_active_or_enabled systemd-timesyncd.service; then
-    info "systemd-timesyncd is available; leaving existing time synchronization mechanism in place."
+  if service_active systemd-timesyncd.service && system_clock_synchronized; then
+    info "systemd-timesyncd is active and the system clock is synchronized; preserving it."
     return 0
   fi
 
@@ -264,6 +290,9 @@ configure_time_sync() {
   if [[ "${dry_run}" == true ]]; then
     echo "DRY-RUN: would install chrony and enable chrony.service."
   else
+    if service_active_or_enabled systemd-timesyncd.service; then
+      systemctl disable --now systemd-timesyncd.service
+    fi
     apt-get install -y chrony
     systemctl enable --now chrony.service
   fi

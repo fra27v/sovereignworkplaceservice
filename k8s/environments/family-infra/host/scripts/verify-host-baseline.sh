@@ -110,6 +110,11 @@ check_command() {
   command -v "$1" >/dev/null 2>&1
 }
 
+service_enabled() {
+  local service_name="$1"
+  systemctl is-enabled --quiet "${service_name}" 2>/dev/null
+}
+
 unit_file_exists() {
   local service_name="$1"
   systemctl list-unit-files "${service_name}" --no-legend 2>/dev/null | awk -v service_name="${service_name}" '$1 == service_name { found=1 } END { exit found ? 0 : 1 }'
@@ -313,10 +318,16 @@ check_packages() {
 }
 
 check_updates() {
+  local apt_dump
+  local automatic_reboot
+  local periodic_unattended
+  local periodic_update_lists
+  local timer_name
   local unattended_file
   section "Automatic updates"
 
   unattended_file="/etc/apt/apt.conf.d/52family-infra-unattended-upgrades"
+  apt_dump="$(apt-config dump 2>/dev/null || true)"
 
   if dpkg-query -W -f='${Status}' unattended-upgrades 2>/dev/null | grep -q 'install ok installed'; then
     ok "unattended-upgrades is installed."
@@ -324,36 +335,56 @@ check_updates() {
     fail_check "unattended-upgrades is not installed."
   fi
 
-  if [[ -r /etc/apt/apt.conf.d/51family-infra-auto-upgrades ]] \
-    && grep -q 'APT::Periodic::Update-Package-Lists "1";' /etc/apt/apt.conf.d/51family-infra-auto-upgrades \
-    && grep -q 'APT::Periodic::Unattended-Upgrade "1";' /etc/apt/apt.conf.d/51family-infra-auto-upgrades; then
-    ok "APT periodic unattended upgrades are enabled."
-  else
-    fail_check "APT periodic unattended upgrades are not enabled."
-  fi
-
-  if [[ -r "${unattended_file}" ]] && grep -q 'Automatic-Reboot "false";' "${unattended_file}"; then
-    ok "unattended-upgrades automatic reboot is disabled."
-  else
-    fail_check "unattended-upgrades automatic reboot is not explicitly disabled."
-  fi
-
-  if [[ -r "${unattended_file}" ]] && grep -q '\${distro_codename}-security' "${unattended_file}"; then
-    if [[ "${update_policy}" == "automatic" ]]; then
-      if grep -q '\${distro_codename}-updates' "${unattended_file}"; then
-        ok "update policy is automatic."
+  for timer_name in apt-daily.timer apt-daily-upgrade.timer; do
+    if unit_file_exists "${timer_name}"; then
+      ok "${timer_name} is available."
+      if service_enabled "${timer_name}"; then
+        ok "${timer_name} is enabled."
       else
-        fail_check "update policy is not automatic; normal updates are missing."
+        fail_check "${timer_name} is not enabled."
       fi
     else
-      if grep -q '\${distro_codename}-updates' "${unattended_file}"; then
-        fail_check "update policy is not security-only; normal updates are enabled."
+      fail_check "${timer_name} is not available."
+    fi
+  done
+
+  periodic_update_lists="$(awk -F'"' '/^APT::Periodic::Update-Package-Lists / { value=$2 } END { print value }' <<<"${apt_dump}")"
+  periodic_unattended="$(awk -F'"' '/^APT::Periodic::Unattended-Upgrade / { value=$2 } END { print value }' <<<"${apt_dump}")"
+  if [[ "${periodic_update_lists}" == "1" && "${periodic_unattended}" == "1" ]]; then
+    ok "effective APT periodic unattended upgrades are enabled."
+  else
+    fail_check "effective APT periodic unattended upgrades are not enabled."
+  fi
+
+  automatic_reboot="$(awk -F'"' '/^Unattended-Upgrade::Automatic-Reboot / { value=$2 } END { print value }' <<<"${apt_dump}")"
+  if [[ "${automatic_reboot}" == "false" ]]; then
+    ok "effective unattended-upgrades automatic reboot is disabled."
+  else
+    fail_check "effective unattended-upgrades automatic reboot is ${automatic_reboot:-unset}; expected false."
+  fi
+
+  if grep -q 'Unattended-Upgrade::Allowed-Origins::.*\${distro_codename}-security' <<<"${apt_dump}"; then
+    if [[ "${update_policy}" == "automatic" ]]; then
+      if grep -q 'Unattended-Upgrade::Allowed-Origins::.*\${distro_codename}-updates' <<<"${apt_dump}"; then
+        ok "effective update policy is automatic."
       else
-        ok "update policy is security-only."
+        fail_check "effective update policy is not automatic; normal updates are missing."
+      fi
+    else
+      if grep -q 'Unattended-Upgrade::Allowed-Origins::.*\${distro_codename}-updates' <<<"${apt_dump}"; then
+        fail_check "effective update policy is not security-only; normal updates are enabled."
+      else
+        ok "effective update policy is security-only."
       fi
     fi
   else
-    fail_check "security updates are not configured in unattended-upgrades."
+    fail_check "security updates are not configured in effective unattended-upgrades origins."
+  fi
+
+  if [[ -r "${unattended_file}" ]]; then
+    ok "family-infra unattended-upgrades drop-in exists."
+  else
+    fail_check "family-infra unattended-upgrades drop-in is missing."
   fi
 
   if [[ -e /var/run/reboot-required ]]; then
