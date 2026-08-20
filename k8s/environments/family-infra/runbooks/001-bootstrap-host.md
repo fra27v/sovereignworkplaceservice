@@ -84,6 +84,9 @@ chmod 0600 ~/.ssh/authorized_keys
 Append the administrator public key to `authorized_keys`. Do not paste or copy
 private keys to the server through this file.
 
+Example for creting the keys on Windows PowerShell
+ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\family-infra-01_vps -C "family-infra-01 ubuntu"
+
 Linux/macOS example from the administrator workstation:
 
 ```bash
