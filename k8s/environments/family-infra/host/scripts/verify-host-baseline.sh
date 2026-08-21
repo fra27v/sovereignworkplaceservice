@@ -158,7 +158,19 @@ detect_os() {
 
 sshd_effective_value() {
   local key="$1"
-  sshd -T -C user=root,host=localhost,addr=127.0.0.1 2>/dev/null | awk -v key="${key}" '$1 == key { print $2; exit }'
+  sshd -T -C user=root,host=localhost,addr=127.0.0.1 2>/dev/null | awk -v key="${key}" '
+    $1 == key && !found {
+      value=$2
+      found=1
+    }
+    END {
+      if (found) {
+        print value
+      } else {
+        exit 1
+      }
+    }
+  '
 }
 
 check_host_identity() {
@@ -234,11 +246,14 @@ check_ssh() {
     fail_check "sshd -t failed."
   fi
 
-  actual="$(sshd_effective_value port)"
-  if [[ "${actual}" == "${ssh_port}" ]]; then
-    ok "effective SSH port is ${ssh_port}."
+  if actual="$(sshd_effective_value port)"; then
+    if [[ "${actual}" == "${ssh_port}" ]]; then
+      ok "effective SSH port is ${ssh_port}."
+    else
+      fail_check "effective SSH port is ${actual:-unknown}; expected ${ssh_port}."
+    fi
   else
-    fail_check "effective SSH port is ${actual:-unknown}; expected ${ssh_port}."
+    fail_check "effective SSH port is unknown; expected ${ssh_port}."
   fi
 
   for pair in \
@@ -253,11 +268,14 @@ check_ssh() {
     local expected
     key="${pair%% *}"
     expected="${pair#* }"
-    actual="$(sshd_effective_value "${key}")"
-    if [[ "${actual}" == "${expected}" ]]; then
-      ok "effective ${key} is ${expected}."
+    if actual="$(sshd_effective_value "${key}")"; then
+      if [[ "${actual}" == "${expected}" ]]; then
+        ok "effective ${key} is ${expected}."
+      else
+        fail_check "effective ${key} is ${actual:-unknown}; expected ${expected}."
+      fi
     else
-      fail_check "effective ${key} is ${actual:-unknown}; expected ${expected}."
+      fail_check "effective ${key} is unknown; expected ${expected}."
     fi
   done
 
