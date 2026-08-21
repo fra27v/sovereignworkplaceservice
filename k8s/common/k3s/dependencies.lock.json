@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "scope": "common-k3s",
+  "lastReviewed": "2026-08-21",
+  "policy": {
+    "rejectLatest": true,
+    "updatesRequireGitCommit": true
+  },
+  "platform": {
+    "k3s": {
+      "version": "v1.36.1+k3s1",
+      "versionCommand": "k3s --version",
+      "updateFlow": "repository-lock"
+    }
+  },
+  "managedComponents": [
+    {
+      "id": "kubernetes-control-plane",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "containerd",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "kubectl",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "local-path-provisioner",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "coredns",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    },
+    {
+      "id": "metrics-server",
+      "managedBy": "k3s",
+      "updateFlow": "k3s-managed"
+    }
+  ]
+}

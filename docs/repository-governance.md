@@ -30,9 +30,9 @@ Use these folder responsibilities:
 
 - `k8s/operator-plane/`: global and operator services.
 - `k8s/operator-plane/environments/<environment>/`: environment-specific operator-plane configuration.
-- `k8s/platform/components/`: reusable components without real environment values.
-- `k8s/environments/<environment>/`: environment-specific tenant or runtime configuration.
-- `k8s/tenants/`: logical tenant records.
+- `k8s/components/`: reusable components without real environment values.
+- `k8s/common/`: reusable host and Kubernetes operational baselines.
+- `k8s/tenants/`: tenant-specific configuration, values, runbooks, and deployment composition.
 - `legacy/`: historical or deprecated material only.
 
 Do not mix global/operator service configuration with tenant runtime configuration unless the file explicitly documents the boundary.
