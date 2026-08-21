@@ -20,7 +20,7 @@ baseline_packages=(
   curl
   ca-certificates
   jq
-  dnsutils
+  bind9-dnsutils
   vim
   htop
   fail2ban
@@ -333,6 +333,12 @@ check_packages() {
       fail_check "package ${package_name} is not installed."
     fi
   done
+
+  if check_command dig; then
+    ok "dig command is available."
+  else
+    fail_check "dig command is not available."
+  fi
 }
 
 check_updates() {
@@ -457,19 +463,29 @@ check_time() {
     ok "chrony is installed or available."
     if systemctl is-active --quiet chrony.service 2>/dev/null; then
       ok "chrony service is active."
+
+      if check_command chronyc && chronyc tracking >/dev/null 2>&1; then
+        ok "chrony reports tracking status."
+      else
+        warn "chrony tracking status is not available."
+      fi
+
+      if check_command chronyc && chronyc waitsync 1 >/dev/null 2>&1; then
+        ok "system clock is synchronized via chrony."
+      else
+        warn "chrony is active but synchronization is not confirmed yet."
+      fi
+      return
     else
       warn "chrony service is not active."
     fi
+  fi
 
-    if check_command chronyc && chronyc tracking >/dev/null 2>&1; then
-      ok "chrony reports tracking status."
-    else
-      warn "chrony tracking status is not available."
-    fi
-  elif systemctl is-active --quiet systemd-timesyncd.service 2>/dev/null; then
+  if systemctl is-active --quiet systemd-timesyncd.service 2>/dev/null; then
     ok "systemd-timesyncd service is active."
   else
     warn "no active chrony or systemd-timesyncd service detected."
+    return
   fi
 
   if check_command timedatectl; then

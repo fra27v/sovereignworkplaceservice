@@ -21,7 +21,7 @@ baseline_packages=(
   curl
   ca-certificates
   jq
-  dnsutils
+  bind9-dnsutils
   vim
   htop
   fail2ban
