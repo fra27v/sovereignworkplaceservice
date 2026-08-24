@@ -311,7 +311,7 @@ servicelb_pods_ready() {
 
 check_packaged_traefik_and_servicelb() {
   local daemonset_refs
-  local service_ports
+  local service_json
   local service_type
   section "Packaged Traefik and ServiceLB"
 
@@ -335,21 +335,30 @@ check_packaged_traefik_and_servicelb() {
     return
   fi
 
-  service_type="$(kubectl -n kube-system get service/traefik -o 'jsonpath={.spec.type}' 2>/dev/null || true)"
+  if ! service_json="$(kubectl -n kube-system get service/traefik -o json 2>/dev/null)"; then
+    fail_check "failed to query service/traefik JSON from the Kubernetes API."
+    return
+  fi
+
+  if ! jq -e '.spec.ports | type == "array"' >/dev/null <<<"${service_json}"; then
+    fail_check "service/traefik JSON does not contain a valid spec.ports array."
+    return
+  fi
+
+  service_type="$(jq -r '.spec.type // ""' <<<"${service_json}")"
   if [[ "${service_type}" == "LoadBalancer" ]]; then
     ok "service/traefik type is LoadBalancer."
   else
     fail_check "service/traefik type is ${service_type:-unknown}; expected LoadBalancer."
   fi
 
-  service_ports="$(kubectl -n kube-system get service/traefik -o 'jsonpath={range .spec.ports[*]}{.port}{\"/\"}{.protocol}{\"\\n\"}{end}' 2>/dev/null || true)"
-  if grep -Fxq "80/TCP" <<<"${service_ports}"; then
+  if jq -e 'any(.spec.ports[]?; .port == 80 and .protocol == "TCP")' >/dev/null <<<"${service_json}"; then
     ok "service/traefik exposes 80/TCP."
   else
     fail_check "service/traefik does not expose 80/TCP."
   fi
 
-  if grep -Fxq "443/TCP" <<<"${service_ports}"; then
+  if jq -e 'any(.spec.ports[]?; .port == 443 and .protocol == "TCP")' >/dev/null <<<"${service_json}"; then
     ok "service/traefik exposes 443/TCP."
   else
     fail_check "service/traefik does not expose 443/TCP."
