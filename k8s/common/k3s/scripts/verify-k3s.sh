@@ -4,6 +4,9 @@ set -euo pipefail
 ok_count=0
 warn_count=0
 fail_count=0
+convergence_timeout_seconds=300
+poll_interval_seconds=5
+convergence_deadline=$((SECONDS + convergence_timeout_seconds))
 
 usage() {
   cat <<'USAGE'
@@ -40,6 +43,40 @@ fail() {
   exit 1
 }
 
+remaining_convergence_seconds() {
+  local remaining
+
+  remaining=$((convergence_deadline - SECONDS))
+  if [[ "${remaining}" -lt 0 ]]; then
+    remaining=0
+  fi
+
+  echo "${remaining}"
+}
+
+wait_until() {
+  local description="$1"
+  shift
+
+  while [[ "$(remaining_convergence_seconds)" -gt 0 ]]; do
+    if "$@"; then
+      return 0
+    fi
+    sleep "${poll_interval_seconds}"
+  done
+
+  if "$@"; then
+    return 0
+  fi
+
+  echo "Timed out waiting for ${description} after ${convergence_timeout_seconds}s." >&2
+  return 1
+}
+
+is_uint() {
+  [[ "$1" =~ ^[0-9]+$ ]]
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help)
@@ -73,13 +110,30 @@ kubectl() {
   k3s kubectl "$@"
 }
 
+get_prefixed_resource_names() {
+  local namespace="$1"
+  local resource_type="$2"
+  local prefix="$3"
+  local line
+  local resource_names
+
+  resource_names="$(kubectl -n "${namespace}" get "${resource_type}" -o name 2>/dev/null || true)"
+  while IFS= read -r line; do
+    if [[ "${line}" == "${prefix}"* ]]; then
+      printf '%s\n' "${line}"
+    fi
+  done <<<"${resource_names}"
+}
+
 check_k3s_binary_and_service() {
   local installed_version
+  local version_output
   section "k3s binary and service"
 
   if command -v k3s >/dev/null 2>&1; then
     ok "k3s command is installed."
-    installed_version="$(k3s --version | awk 'NR == 1 { print $3 }')"
+    version_output="$(k3s --version 2>/dev/null || true)"
+    installed_version="$(awk 'NR == 1 { print $3 }' <<<"${version_output}")"
     if [[ "${installed_version}" == "${expected_k3s_version}" ]]; then
       ok "k3s version is ${expected_k3s_version}."
     else
@@ -128,10 +182,12 @@ check_config_files() {
 check_node() {
   local node_count
   local node_names
+  local nodes_output
   local ready_status
   section "Node"
 
-  node_names="$(kubectl get nodes --no-headers 2>/dev/null | awk '{ print $1 }')"
+  nodes_output="$(kubectl get nodes --no-headers 2>/dev/null || true)"
+  node_names="$(awk '{ print $1 }' <<<"${nodes_output}")"
   node_count="$(awk 'NF { count++ } END { print count + 0 }' <<<"${node_names}")"
 
   if [[ "${node_count}" == "1" ]]; then
@@ -170,23 +226,158 @@ check_system_workloads() {
   fi
 }
 
-check_disabled_embedded_components() {
-  local embedded_traefik_resources
-  local servicelb_resources
-  section "Disabled embedded components"
+traefik_helmchart_exists() {
+  kubectl -n kube-system get helmchart.helm.cattle.io traefik >/dev/null 2>&1
+}
 
-  embedded_traefik_resources="$(kubectl get all -n kube-system --no-headers 2>/dev/null | awk 'tolower($1) ~ /traefik/ { print $1 }')"
-  if [[ -z "${embedded_traefik_resources}" ]]; then
-    ok "embedded k3s Traefik is absent."
+traefik_deployment_ready() {
+  local available_status
+  local desired_replicas
+  local ready_replicas
+
+  available_status="$(kubectl -n kube-system get deployment.apps/traefik -o 'jsonpath={.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)"
+  desired_replicas="$(kubectl -n kube-system get deployment.apps/traefik -o 'jsonpath={.spec.replicas}' 2>/dev/null || true)"
+  ready_replicas="$(kubectl -n kube-system get deployment.apps/traefik -o 'jsonpath={.status.readyReplicas}' 2>/dev/null || true)"
+  desired_replicas="${desired_replicas:-1}"
+  ready_replicas="${ready_replicas:-0}"
+
+  is_uint "${desired_replicas}" || return 1
+  is_uint "${ready_replicas}" || return 1
+  [[ "${available_status}" == "True" && "${desired_replicas}" -gt 0 && "${ready_replicas}" -ge "${desired_replicas}" ]]
+}
+
+traefik_service_exists() {
+  kubectl -n kube-system get service/traefik >/dev/null 2>&1
+}
+
+traefik_loadbalancer_status_ready() {
+  local ingress
+
+  ingress="$(kubectl -n kube-system get service/traefik -o 'jsonpath={.status.loadBalancer.ingress[*].ip}{.status.loadBalancer.ingress[*].hostname}' 2>/dev/null || true)"
+  [[ -n "${ingress}" ]]
+}
+
+servicelb_daemonsets_ready() {
+  local current_scheduled
+  local daemonset_ref
+  local daemonset_refs
+  local desired_scheduled
+  local found=false
+  local ready_scheduled
+
+  daemonset_refs="$(get_prefixed_resource_names kube-system daemonset daemonset.apps/svclb-traefik-)"
+  while IFS= read -r daemonset_ref; do
+    [[ -n "${daemonset_ref}" ]] || continue
+    found=true
+
+    desired_scheduled="$(kubectl -n kube-system get "${daemonset_ref}" -o 'jsonpath={.status.desiredNumberScheduled}' 2>/dev/null || true)"
+    current_scheduled="$(kubectl -n kube-system get "${daemonset_ref}" -o 'jsonpath={.status.currentNumberScheduled}' 2>/dev/null || true)"
+    ready_scheduled="$(kubectl -n kube-system get "${daemonset_ref}" -o 'jsonpath={.status.numberReady}' 2>/dev/null || true)"
+    desired_scheduled="${desired_scheduled:-0}"
+    current_scheduled="${current_scheduled:-0}"
+    ready_scheduled="${ready_scheduled:-0}"
+
+    is_uint "${desired_scheduled}" || return 1
+    is_uint "${current_scheduled}" || return 1
+    is_uint "${ready_scheduled}" || return 1
+    [[ "${desired_scheduled}" -gt 0 ]] || return 1
+    [[ "${current_scheduled}" -ge "${desired_scheduled}" ]] || return 1
+    [[ "${ready_scheduled}" -ge "${desired_scheduled}" ]] || return 1
+  done <<<"${daemonset_refs}"
+
+  [[ "${found}" == true ]]
+}
+
+servicelb_pods_ready() {
+  local found=false
+  local phase
+  local pod_ref
+  local pod_refs
+  local ready_status
+
+  pod_refs="$(get_prefixed_resource_names kube-system pod pod/svclb-traefik-)"
+  while IFS= read -r pod_ref; do
+    [[ -n "${pod_ref}" ]] || continue
+    found=true
+
+    phase="$(kubectl -n kube-system get "${pod_ref}" -o 'jsonpath={.status.phase}' 2>/dev/null || true)"
+    ready_status="$(kubectl -n kube-system get "${pod_ref}" -o 'jsonpath={.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || true)"
+    [[ "${phase}" == "Running" ]] || return 1
+    [[ "${ready_status}" == "True" ]] || return 1
+  done <<<"${pod_refs}"
+
+  [[ "${found}" == true ]]
+}
+
+check_packaged_traefik_and_servicelb() {
+  local daemonset_refs
+  local service_ports
+  local service_type
+  section "Packaged Traefik and ServiceLB"
+
+  if wait_until "k3s packaged Traefik HelmChart" traefik_helmchart_exists; then
+    ok "k3s packaged Traefik HelmChart exists."
   else
-    fail_check "embedded k3s Traefik resources exist in kube-system."
+    fail_check "missing kube-system HelmChart traefik."
+    return
   fi
 
-  servicelb_resources="$(kubectl get daemonset,deploy,pods,svc -A --no-headers 2>/dev/null | awk 'tolower($0) ~ /servicelb|klipper-lb/ { print $1 }')"
-  if [[ -z "${servicelb_resources}" ]]; then
-    ok "ServiceLB resources are absent."
+  if wait_until "Traefik deployment readiness" traefik_deployment_ready; then
+    ok "deployment.apps/traefik is Available with ready replicas."
   else
-    fail_check "ServiceLB resources exist."
+    fail_check "deployment.apps/traefik is not Available/Ready in kube-system."
+  fi
+
+  if wait_until "Traefik LoadBalancer service" traefik_service_exists; then
+    ok "service/traefik exists in kube-system."
+  else
+    fail_check "service/traefik is missing in kube-system."
+    return
+  fi
+
+  service_type="$(kubectl -n kube-system get service/traefik -o 'jsonpath={.spec.type}' 2>/dev/null || true)"
+  if [[ "${service_type}" == "LoadBalancer" ]]; then
+    ok "service/traefik type is LoadBalancer."
+  else
+    fail_check "service/traefik type is ${service_type:-unknown}; expected LoadBalancer."
+  fi
+
+  service_ports="$(kubectl -n kube-system get service/traefik -o 'jsonpath={range .spec.ports[*]}{.port}{\"/\"}{.protocol}{\"\\n\"}{end}' 2>/dev/null || true)"
+  if grep -Fxq "80/TCP" <<<"${service_ports}"; then
+    ok "service/traefik exposes 80/TCP."
+  else
+    fail_check "service/traefik does not expose 80/TCP."
+  fi
+
+  if grep -Fxq "443/TCP" <<<"${service_ports}"; then
+    ok "service/traefik exposes 443/TCP."
+  else
+    fail_check "service/traefik does not expose 443/TCP."
+  fi
+
+  if wait_until "Traefik LoadBalancer status" traefik_loadbalancer_status_ready; then
+    ok "service/traefik has LoadBalancer ingress status."
+  else
+    warn "service/traefik LoadBalancer ingress status is not populated yet."
+  fi
+
+  daemonset_refs="$(get_prefixed_resource_names kube-system daemonset daemonset.apps/svclb-traefik-)"
+  if [[ -n "${daemonset_refs}" ]]; then
+    ok "ServiceLB daemonset for Traefik exists."
+  else
+    fail_check "ServiceLB daemonset for Traefik is missing."
+  fi
+
+  if wait_until "ServiceLB daemonset readiness" servicelb_daemonsets_ready; then
+    ok "ServiceLB daemonset desired/current/ready state is healthy."
+  else
+    fail_check "ServiceLB daemonset for Traefik is not healthy."
+  fi
+
+  if wait_until "ServiceLB pod readiness" servicelb_pods_ready; then
+    ok "ServiceLB pod for Traefik is Running and Ready."
+  else
+    fail_check "ServiceLB pod for Traefik is not Running/Ready."
   fi
 }
 
@@ -205,10 +396,12 @@ check_secrets_encryption() {
 }
 
 check_listening_ports() {
+  local listening_sockets
   section "Listening ports"
 
   if command -v ss >/dev/null 2>&1; then
-    ss -ltnp | awk 'NR == 1 || $4 ~ /(:6443)$/ || $4 ~ /(:6443)[[:space:]]/'
+    listening_sockets="$(ss -ltnp 2>/dev/null || true)"
+    awk 'NR == 1 || $4 ~ /(:6443)$/ || $4 ~ /(:6443)[[:space:]]/' <<<"${listening_sockets}"
     ok "displayed k3s API listener state."
   else
     warn "ss is not available; skipping listening port display."
@@ -221,7 +414,7 @@ check_config_files
 if command -v k3s >/dev/null 2>&1 && [[ -f "${kubeconfig}" ]]; then
   check_node
   check_system_workloads
-  check_disabled_embedded_components
+  check_packaged_traefik_and_servicelb
   check_secrets_encryption
   check_listening_ports
 else

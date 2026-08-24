@@ -79,10 +79,6 @@ repo_root="$(cd -- "${script_dir}/../../../../.." && pwd)"
 run_step "Verify k3s baseline" \
   "${repo_root}/k8s/common/k3s/scripts/setup-k3s.sh" verify
 
-run_step "Verify Traefik runtime" \
-  "${repo_root}/k8s/components/traefik/scripts/verify.sh" \
-  --env-file "${repo_root}/k8s/tenants/family-infra/components/traefik-runtime.env"
-
 run_step "Apply whoami routing smoke test" \
   "${repo_root}/k8s/tenants/family-infra/tests/smoke/whoami-routing/apply.sh"
 whoami_smoke_test_applied="true"

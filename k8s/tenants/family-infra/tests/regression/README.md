@@ -5,9 +5,8 @@
 It runs these checks in order:
 
 1. k3s baseline verification.
-2. Runtime Traefik verification.
-3. whoami routing smoke test apply.
-4. whoami routing smoke test verification.
+2. whoami routing smoke test apply.
+3. whoami routing smoke test verification.
 
 Run the suite:
 

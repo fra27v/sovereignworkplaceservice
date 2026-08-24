@@ -9,7 +9,7 @@ This runbook covers only the k3s baseline.
 
 Out of scope:
 
-- Traefik installation.
+- Independent Traefik chart installation.
 - Application migration.
 - OpenBao deployment.
 - Keycloak, midPoint, Nextcloud, HR, Vaultwarden, and Collabora deployment.
@@ -46,13 +46,16 @@ The verification command checks:
 
 - node Ready
 - kube-system pods
-- embedded k3s Traefik is absent from `kube-system`
+- k3s packaged Traefik HelmChart, Deployment, and LoadBalancer Service
+- k3s ServiceLB daemonset and pod readiness for Traefik
+- Traefik Service ports `80/TCP` and `443/TCP`
 - secrets encryption is enabled
 - kubeconfig mode is `0600`
-- key listening ports
+- k3s API listener state
 
-It does not fail when the valid runtime Traefik exists in
-`ingress-family-infra`.
+Traefik is reconciled by k3s as a packaged component in `kube-system`.
+Do not install an independent Traefik controller unless a future architecture
+decision explicitly requires it.
 
 ## Recovery Notes
 

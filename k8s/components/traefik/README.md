@@ -1,14 +1,15 @@
-# Traefik
+# Traefik Component
 
-Reusable platform component for Traefik ingress routing.
+Reusable component assets for an independently managed Traefik ingress
+controller.
 
-This component contains shared chart defaults and install/verify scripts only.
-Tenant-specific runtime decisions live under `k8s/tenants/<tenant>`.
+The current common k3s baseline uses the k3s-packaged Traefik and k3s ServiceLB
+instead. Do not install this component as a second ingress controller for
+`family-infra` without an explicit future architecture decision.
 
-The `family-infra` instance is a runtime Traefik for a single-node k3s
-environment. It directly owns host ports `80` and `443` through hostPort. It is
-not the future global/front edge Traefik, which will live on separate
-infrastructure.
+This component contains shared chart defaults and install/verify scripts for a
+separate Traefik deployment path. Tenant-specific runtime decisions live under
+`k8s/tenants/<tenant>`.
 
 ## Files
 
@@ -19,21 +20,10 @@ infrastructure.
 - `scripts/verify.sh` checks the deployed release, discovers configured
   hostPorts from the Deployment, and verifies those ports are listening.
 
-## Usage
+## Current Posture
 
-Install a runtime instance with an environment file:
-
-```bash
-sudo ./k8s/components/traefik/scripts/install.sh \
-  --env-file k8s/tenants/family-infra/components/traefik-runtime.env
-```
-
-Verify it:
-
-```bash
-sudo ./k8s/components/traefik/scripts/verify.sh \
-  --env-file k8s/tenants/family-infra/components/traefik-runtime.env
-```
+This directory is retained for future explicit independent-Traefik work. It is
+not part of the current `family-infra` default installation flow.
 
 Do not commit secrets, certificates, tokens, credentials, kubeconfig files, or
 generated local cluster state.

@@ -1,46 +1,40 @@
-# Install Traefik runtime for family-infra
+# Verify packaged Traefik for family-infra
 
-This runbook installs and verifies the `family-infra` runtime Traefik instance.
+This runbook verifies the k3s-packaged Traefik and ServiceLB path for the
+`family-infra` environment.
 
 ## Scope
 
-This Traefik instance is the runtime ingress controller for the single-node
-`family-infra` k3s environment. It directly owns host ports `80` and `443` via
-hostPort.
+Traefik is installed and reconciled by k3s as a packaged component in
+`kube-system`. ServiceLB is also managed by k3s and exposes the Traefik
+LoadBalancer Service on the node.
 
 Out of scope:
 
-- Future global/front edge Traefik.
+- Installing an independent Traefik Helm release.
+- OVH DNS credentials.
+- Public ACME DNS-01 configuration.
+- VPS-specific HelmChartConfig.
 - Application services.
 - Secrets, certificates, tokens, or credentials.
 
 ## Preconditions
 
-- The k3s baseline is installed and verified.
-- Embedded k3s Traefik is disabled.
-- Ports `80` and `443` are available on the node.
+- The k3s baseline is installed.
+- The common k3s config has been prepared from `k8s/common/k3s/config.yaml`.
+- k3s has been restarted after any config change.
 - The repository is cloned on the target node.
-
-## Install
-
-Run this command on the target node:
-
-```bash
-sudo ./k8s/components/traefik/scripts/install.sh \
-  --env-file k8s/tenants/family-infra/components/traefik-runtime.env
-```
 
 ## Verify
 
 Run this command on the target node:
 
 ```bash
-sudo ./k8s/components/traefik/scripts/verify.sh \
-  --env-file k8s/tenants/family-infra/components/traefik-runtime.env
+sudo ./k8s/common/k3s/scripts/setup-k3s.sh verify
 ```
 
-The verification checks the Helm release, pods, deployment, IngressClass,
-services, hostPort listeners, and absence of an unexpected LoadBalancer
+The verification checks packaged Traefik, the Traefik LoadBalancer Service,
+Service ports `80/TCP` and `443/TCP`, and ServiceLB readiness for the Traefik
 Service.
 
 ## Optional Smoke Test
@@ -66,21 +60,15 @@ sudo ./k8s/tenants/family-infra/tests/smoke/whoami-routing/delete.sh
 
 ## Regression
 
-After installing Traefik, run the regression suite when you want to verify the
-k3s baseline, runtime Traefik, and whoami routing together:
+Run the regression suite when you want to verify the k3s baseline and whoami
+routing together:
 
 ```bash
 sudo ./k8s/tenants/family-infra/tests/regression/run.sh
 ```
 
-## Rollback
-
-Run this command on the target node:
-
-```bash
-sudo KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
-  helm uninstall traefik-family-infra -n ingress-family-infra
-```
+Do not install `k8s/components/traefik` as a second ingress controller without
+an explicit future architecture decision.
 
 Do not commit generated local files, kubeconfig files, certificates, tokens,
 credentials, or secrets.

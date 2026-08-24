@@ -1,53 +1,61 @@
 # family-infra status
 
-Date: 2026-06-18
+Date: 2026-08-24
 
 ## Summary
 
-- k3s baseline OK
-- Traefik runtime OK
-- whoami routing OK
-- regression suite OK
+- k3s baseline previously verified with pinned version `v1.36.1+k3s1`
+- packaged Traefik and ServiceLB pending after the next config apply and k3s restart
+- whoami routing pending re-verification with the packaged `traefik` IngressClass
+- regression suite pending re-run
 
 ## k3s baseline
 
-Status: installed and verified
+Status: installed and previously verified
 
-Verified:
+Verified before this Git change:
 - node Ready
 - kube-system pods healthy
-- embedded k3s Traefik absent
 - secrets encryption enabled
 - kubeconfig mode 0600
 - key ports checked
 
-## Runtime Traefik
+Pending after this Git change:
+- apply the updated common k3s config
+- restart k3s
+- verify packaged Traefik HelmChart, Deployment, and LoadBalancer Service
+- verify ServiceLB daemonset and pod readiness for Traefik
+- verify Traefik Service ports `80/TCP` and `443/TCP`
 
-Status: installed and verified
-Release: traefik-family-infra
-Namespace: ingress-family-infra
-IngressClass: traefik-family-infra
+## Packaged Traefik
 
-Verified:
-- Traefik pod Running
-- Traefik deployment successfully rolled out
-- no LoadBalancer Service created
-- HTTP route reachable through hostPort 80
-- HTTPS endpoint reachable through hostPort 443
-- whoami routing smoke test passed
+Status: pending reconciliation and verification
 
-Smoke test:
+Expected:
+- namespace: kube-system
+- HelmChart: traefik
+- Deployment: traefik
+- Service: traefik
+- Service type: LoadBalancer
+- Service ports: 80/TCP and 443/TCP
+- IngressClass: traefik
+- ServiceLB daemonset name prefix: svclb-traefik-
+
+## Smoke test
+
+Status: pending re-verification
+
+Expected:
 - namespace: smoke-whoami
 - host: whoami.internal
-- ingress class: traefik-family-infra
+- ingress class: traefik
 - response includes Hostname and Traefik forwarded headers
 
 ## Regression suite
 
-Status: passed
+Status: pending re-run
 
-Verified:
+Expected checks:
 - k3s baseline verification
-- runtime Traefik verification
 - whoami routing smoke test apply
 - whoami routing smoke test verification

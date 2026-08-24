@@ -1,6 +1,7 @@
-# family-infra runtime Traefik overrides.
-# This environment is a single-node k3s installation without ServiceLB or MetalLB.
-# This Traefik instance directly owns host ports 80 and 443.
+# Legacy independent Traefik component overrides.
+# Not part of the current default family-infra flow, which uses k3s-packaged
+# Traefik and ServiceLB.
+# This legacy instance directly owns host ports 80 and 443.
 # The IngressClass name is explicit to avoid relying on Helm release-name defaults.
 
 deployment:

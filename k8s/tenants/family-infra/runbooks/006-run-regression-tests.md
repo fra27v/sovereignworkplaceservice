@@ -5,8 +5,9 @@ environment.
 
 ## Scope
 
-The regression suite verifies the installed k3s baseline, the installed runtime
-Traefik instance, and the versioned whoami routing smoke test.
+The regression suite verifies the installed k3s baseline, the k3s-packaged
+Traefik and ServiceLB baseline checks, and the versioned whoami routing smoke
+test.
 
 Out of scope:
 
@@ -18,7 +19,7 @@ Out of scope:
 ## Preconditions
 
 - The k3s baseline is installed and verified.
-- Runtime Traefik is installed and verified.
+- k3s packaged Traefik and ServiceLB are reconciled and verified.
 - The repository is cloned on the target node.
 
 ## Run

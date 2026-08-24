@@ -6,7 +6,8 @@ infrastructure.
 ## Current Scope
 
 The current scope includes the Ubuntu host baseline for `family-infra-01`, the
-verified k3s baseline, the runtime Traefik instance, and environment tests:
+verified k3s baseline, k3s-packaged Traefik with ServiceLB, and environment
+tests:
 
 - host OS bootstrap documentation
 - idempotent host baseline apply and verify scripts
@@ -14,7 +15,7 @@ verified k3s baseline, the runtime Traefik instance, and environment tests:
 - common config preparation script
 - common k3s installation wrapper
 - common baseline verification script
-- reusable runtime Traefik installation and verification
+- packaged Traefik and ServiceLB verification through the common k3s baseline
 - versioned whoami routing smoke test
 - regression test entrypoint
 
@@ -57,21 +58,21 @@ The reusable operational scripts are in `../../common/`:
   `/etc/rancher/k3s/config.yaml`.
 - `k3s/scripts/install-k3s.sh` installs the pinned k3s version.
 - `k3s/scripts/verify-k3s.sh` checks the baseline node state, secrets encryption,
-  kubeconfig permissions, disabled embedded Traefik, and key ports.
+  kubeconfig permissions, packaged Traefik, ServiceLB, and key ports.
 - `k3s/scripts/setup-k3s.sh` is the command wrapper for `prepare`, `install`,
   `verify`, and `all`.
 
-Traefik runtime scripts live under
-`k8s/components/traefik/scripts/`.
+The independent Traefik component under `k8s/components/traefik/` is not part
+of the current default `family-infra` installation flow.
 
 ## Tests
 
 Environment tests are in `tests/`:
 
-- `tests/smoke/whoami-routing/` verifies HTTP routing through the runtime
-  Traefik instance.
-- `tests/regression/run.sh` runs the k3s baseline verification, Traefik
-  verification, and whoami routing smoke test in order.
+- `tests/smoke/whoami-routing/` verifies HTTP routing through k3s-packaged
+  Traefik.
+- `tests/regression/run.sh` runs the k3s baseline verification and whoami
+  routing smoke test in order.
 - `tests/e2e/`, `tests/security/`, and `tests/backup-restore/` are placeholders
   for future test categories.
 
@@ -87,7 +88,7 @@ Environment tests are in `tests/`:
 ## Current Status
 
 - k3s baseline OK
-- Traefik runtime OK
+- packaged Traefik and ServiceLB pending after the next config apply and k3s restart
 - whoami routing OK
 - regression suite OK
 

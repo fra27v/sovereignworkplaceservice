@@ -1,10 +1,10 @@
 # whoami routing smoke test
 
-This directory contains a versioned routing smoke test for the `family-infra`
-runtime Traefik instance.
+This directory contains a versioned routing smoke test for the k3s-packaged
+Traefik instance used by `family-infra`.
 
 It deploys a single `traefik/whoami:v1.10.3` pod in the `smoke-whoami`
-namespace and exposes it through the `traefik-family-infra` IngressClass at
+namespace and exposes it through the packaged `traefik` IngressClass at
 `http://whoami.internal/`.
 
 This is only a smoke test. It is not an application service and does not use
