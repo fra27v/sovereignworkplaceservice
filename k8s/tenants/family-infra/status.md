@@ -4,34 +4,31 @@ Date: 2026-08-24
 
 ## Summary
 
-- k3s baseline previously verified with pinned version `v1.36.1+k3s1`
-- packaged Traefik and ServiceLB pending after the next config apply and k3s restart
-- whoami routing pending re-verification with the packaged `traefik` IngressClass
-- regression suite pending re-run
+- k3s baseline verified with pinned version `v1.36.1+k3s1`
+- packaged Traefik verified
+- ServiceLB verified
+- whoami routing verified with the packaged `traefik` IngressClass
+- regression suite verified
 
 ## k3s baseline
 
-Status: installed and previously verified
+Status: installed and verified
 
-Verified before this Git change:
+Verified:
 - node Ready
 - kube-system pods healthy
 - secrets encryption enabled
 - kubeconfig mode 0600
 - key ports checked
-
-Pending after this Git change:
-- apply the updated common k3s config
-- restart k3s
 - verify packaged Traefik HelmChart, Deployment, and LoadBalancer Service
 - verify ServiceLB daemonset and pod readiness for Traefik
 - verify Traefik Service ports `80/TCP` and `443/TCP`
 
 ## Packaged Traefik
 
-Status: pending reconciliation and verification
+Status: installed and verified
 
-Expected:
+Verified:
 - namespace: kube-system
 - HelmChart: traefik
 - Deployment: traefik
@@ -43,9 +40,9 @@ Expected:
 
 ## Smoke test
 
-Status: pending re-verification
+Status: verified
 
-Expected:
+Verified:
 - namespace: smoke-whoami
 - host: whoami.internal
 - ingress class: traefik
@@ -53,9 +50,9 @@ Expected:
 
 ## Regression suite
 
-Status: pending re-run
+Status: passed
 
-Expected checks:
+Verified:
 - k3s baseline verification
 - whoami routing smoke test apply
 - whoami routing smoke test verification

@@ -87,8 +87,9 @@ Environment tests are in `tests/`:
 
 ## Current Status
 
-- k3s baseline OK
-- packaged Traefik and ServiceLB pending after the next config apply and k3s restart
+- k3s baseline OK on `v1.36.1+k3s1`
+- packaged Traefik OK
+- ServiceLB OK
 - whoami routing OK
 - regression suite OK
 
