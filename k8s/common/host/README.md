@@ -59,6 +59,5 @@ Ubuntu Server 26.04 LTS
   -> k3s verify
 ```
 
-Use the runbooks in `../runbooks/`:
-
-Tenant-specific runbooks live under `k8s/tenants/<tenant>/runbooks/`.
+Tenant-specific runbooks belong under `k8s/tenants/<tenant>/runbooks/` when a
+tenant implementation is introduced.

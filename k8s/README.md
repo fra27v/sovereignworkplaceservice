@@ -36,6 +36,9 @@ Components must not contain environment-specific runtime values. Tenant values,
 domains, hostnames, storage decisions, and runtime composition belong under
 `k8s/tenants/`.
 
+Component directories are added only when a reusable workload is actually
+implemented. No placeholder component directories are maintained.
+
 ## operator-plane
 
 `k8s/operator-plane/` contains the global/operator control-plane
@@ -50,10 +53,8 @@ deployment.
 `k8s/tenants/` contains tenant-specific configuration, values, runbooks, and
 deployment composition.
 
-- `family-infra/` is the local family tenant operational environment.
-- `customer-template/` is the starting template for future customer tenants.
-- `family-infra-01/` contains existing tenant identity and OpenBao metadata for
-  the `family-infra-01` tenant record.
+Tenant directories are added only when actual tenant-specific configuration is
+introduced. No placeholder tenant directories are maintained.
 
 ## Removed environments Category
 

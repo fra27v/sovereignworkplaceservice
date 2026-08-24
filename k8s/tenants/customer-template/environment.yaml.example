@@ -1,8 +1,0 @@
-# Example customer environment configuration.
-# Replace all values locally before use.
-
-environment: customer-template
-tenant: customer-tenant-id
-domain: customer.example.test
-contact_email: admin@example.test
-storage_class: local-path
