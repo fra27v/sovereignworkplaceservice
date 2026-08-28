@@ -11,6 +11,7 @@ storage request: 1Gi
 canonical DNS: vault.internal
 recovery shares: 3
 recovery threshold: 2
+Global OpenBao Transit endpoint: https://operator-vault.varrese.com
 ```
 
 The authoritative current desired configuration is:
@@ -86,6 +87,17 @@ Transit mount: transit/
 Transit communication uses HTTPS with certificate verification. The public
 Operator CA bundle is projected only to verify the Global OpenBao Transit
 endpoint. It is not part of the tenant trust chain.
+
+The external Transit endpoint is:
+
+```text
+https://operator-vault.varrese.com
+```
+
+This is the operator-plane `operator-vault.varrese.com` endpoint exposed
+through Traefik TCP passthrough, with TLS terminated by Global OpenBao using an
+Operator PKI certificate. Tenant OpenBao must not use an operator-plane
+`.svc.cluster.local` name.
 
 The Transit token is secret material. It must not be committed, printed, or
 stored in `tenant.yaml`.

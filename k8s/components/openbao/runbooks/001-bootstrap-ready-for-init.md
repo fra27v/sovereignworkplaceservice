@@ -20,6 +20,8 @@ Service, Ingress, IngressRoute, or Traefik route.
 - The Transit token has been placed in protected custody outside Git.
 - The public Operator CA bundle has been published for `family-infra-01`.
 - k3s secret encryption is enabled.
+- The externally reachable Global OpenBao endpoint is
+  `https://operator-vault.varrese.com`.
 
 ## Validate Configuration
 
@@ -56,6 +58,30 @@ The required contract is:
 Transit mount: transit/
 Transit key: family-infra-01-autounseal
 Transit policy: family-infra-01-transit-autounseal
+Transit endpoint: https://operator-vault.varrese.com
+```
+
+Do not use `*.svc.cluster.local` addresses for Transit. Tenant OpenBao runs in
+a different Kubernetes cluster from Global OpenBao.
+
+## Reconcile Foundation
+
+Create the namespace first. This phase does not deploy OpenBao:
+
+```bash
+k8s/components/openbao/scripts/reconcile-bootstrap.sh \
+  --tenant-file k8s/tenants/family-infra/tenant.yaml \
+  --phase foundation \
+  --dry-run
+```
+
+After review:
+
+```bash
+k8s/components/openbao/scripts/reconcile-bootstrap.sh \
+  --tenant-file k8s/tenants/family-infra/tenant.yaml \
+  --phase foundation \
+  --apply
 ```
 
 ## Project Transit Runtime Credential
@@ -90,11 +116,33 @@ The Operator CA bundle is public trust material for verifying Global OpenBao
 Transit TLS. It is not a tenant CA and is not part of the family-infra trust
 chain.
 
+## Verify Transit Prerequisites
+
+Static preflight:
+
+```bash
+k8s/components/openbao/scripts/verify-transit-preflight.sh \
+  --tenant-file k8s/tenants/family-infra/tenant.yaml
+```
+
+Live preflight after namespace, CA ConfigMap, and Transit Secret projection:
+
+```bash
+k8s/components/openbao/scripts/verify-transit-preflight.sh \
+  --tenant-file k8s/tenants/family-infra/tenant.yaml \
+  --live
+```
+
+Live preflight verifies namespace existence, CA ConfigMap key presence, Transit
+Secret key presence, DNS/TLS reachability, and a minimal Transit encrypt call
+without printing token or response data.
+
 ## Render Bootstrap Manifest
 
 ```bash
 k8s/components/openbao/scripts/render-bootstrap.sh \
   --tenant-file k8s/tenants/family-infra/tenant.yaml \
+  --phase all \
   --output /tmp/family-infra-openbao-bootstrap.yaml
 ```
 
@@ -107,6 +155,7 @@ First run a server-side dry run:
 ```bash
 k8s/components/openbao/scripts/reconcile-bootstrap.sh \
   --tenant-file k8s/tenants/family-infra/tenant.yaml \
+  --phase statefulset \
   --dry-run
 ```
 
@@ -115,11 +164,15 @@ After review:
 ```bash
 k8s/components/openbao/scripts/reconcile-bootstrap.sh \
   --tenant-file k8s/tenants/family-infra/tenant.yaml \
+  --phase statefulset \
   --apply
 ```
 
-The reconcile script renders and applies only the bootstrap foundation. It does
-not run `bao operator init`.
+The statefulset apply phase runs live Transit preflight first. If namespace,
+Operator CA ConfigMap, Transit Secret, or Transit HTTPS validation is missing,
+the StatefulSet is not deployed.
+
+The reconcile script does not run `bao operator init`.
 
 ## Verify Ready For Init
 
@@ -150,6 +203,7 @@ kubectl exec -> http://127.0.0.1:8200
 - The OpenBao pod is created by a `StatefulSet`.
 - Replica count is `1`.
 - Raft storage is backed by a PVC.
+- `cluster_addr` is configured as `https://127.0.0.1:8201`.
 - Storage class is `local-path`.
 - Requested storage is `1Gi`.
 - Transit seal configuration is present.

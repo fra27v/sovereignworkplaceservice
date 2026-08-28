@@ -10,6 +10,15 @@ OpenBao.
 Global OpenBao belongs to the operator plane. Its only intentional permanent
 dependency for Tenant OpenBao is Transit auto-unseal.
 
+For `family-infra`, the externally reachable Global OpenBao endpoint is:
+
+```text
+https://operator-vault.varrese.com
+```
+
+Tenant OpenBao must not use an operator-plane Kubernetes service DNS name such
+as `*.svc.cluster.local`, because Tenant OpenBao runs in a different cluster.
+
 ## Release Model
 
 Sovereign component releases are distinct from upstream OpenBao versions.
@@ -116,6 +125,19 @@ this component does not create a Service during bootstrap. Release `1` is a
 single-node Raft deployment and does not require an OpenBao API Service before
 initialization.
 
+The bootstrap OpenBao configuration sets:
+
+```text
+api_addr = http://127.0.0.1:8200
+cluster_addr = https://127.0.0.1:8201
+listener address = 127.0.0.1:8200
+listener cluster_address = 127.0.0.1:8201
+```
+
+The API listener remains loopback-only. The cluster listener is also loopback
+for release `1` because this is a single-node Raft deployment and no standby
+node needs pod-network access to the cluster listener during bootstrap.
+
 ## Transit Auto-Unseal
 
 Tenant OpenBao uses Global OpenBao Transit auto-unseal. For `family-infra-01`,
@@ -136,6 +158,36 @@ tenant trust chain.
 
 The Transit token is secret material. It is projected from a Kubernetes Secret
 at runtime and must not be committed to Git or printed by scripts.
+
+The Transit key name is derived from the tenant node as:
+
+```text
+${tenant.node}-autounseal
+```
+
+For `family-infra-01`, this resolves to `family-infra-01-autounseal`.
+
+## Bootstrap Gates
+
+Bootstrap uses two explicit gates:
+
+```text
+PHASE A: foundation
+    -> namespace exists
+
+PHASE B: statefulset
+    -> Operator CA ConfigMap exists
+    -> Transit token Secret exists
+    -> Transit HTTPS preflight passes
+    -> StatefulSet is deployed
+```
+
+The StatefulSet must not be deployed until external prerequisites are projected
+and validated.
+
+`reconcile-bootstrap.sh` requires an explicit mode. Running it without
+`--dry-run` or `--apply` fails with usage. Running it without `--phase` also
+fails.
 
 ## Runtime Target
 

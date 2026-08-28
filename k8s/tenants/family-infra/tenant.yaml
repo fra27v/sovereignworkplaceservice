@@ -23,21 +23,8 @@ pki:
 
 openbao:
   canonicalDnsName: vault.internal
-  namespace: openbao-family-infra
-  statefulSetName: openbao
-  serviceAccountName: openbao
-  configMapName: openbao-bootstrap-config
-  dataVolumeName: openbao-raft
   transit:
-    address: https://openbao-global.openbao-operator.svc.cluster.local:8200
-    keyName: family-infra-01-autounseal
-    mountPath: transit/
-    tlsServerName: openbao-global.openbao-operator.svc.cluster.local
-    caBundleConfigMapName: operator-ca-bundle
-    caBundleKey: ca.crt
-    caBundleMountPath: /openbao/tls/operator-ca-bundle.pem
-    tokenSecretName: openbao-transit-autounseal
-    tokenSecretKey: token
+    address: https://operator-vault.varrese.com
 
 recovery:
   shares: 3
