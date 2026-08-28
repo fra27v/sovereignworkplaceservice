@@ -8,11 +8,12 @@ source "${script_dir}/lib.sh"
 tenant_file=""
 output_file=""
 keep_output="false"
+phase="all"
 
 usage() {
   cat <<'USAGE'
 Usage:
-  render-bootstrap.sh [--tenant-file <path>] [--output <path>] [--keep-output] [--help]
+  render-bootstrap.sh [--tenant-file <path>] [--phase foundation|statefulset|all] [--output <path>] [--keep-output] [--help]
 
 Renders the Tenant OpenBao bootstrap manifest. The manifest intentionally
 contains no OpenBao Service, Ingress, IngressRoute, Traefik route, or Secret
@@ -58,7 +59,7 @@ replace_vars() {
         }
         print
       }
-    ' "${openbao_component_dir}/manifests/bootstrap.yaml.tpl"
+    ' "$1"
 }
 
 render_openbao_config() {
@@ -93,6 +94,11 @@ while [[ "$#" -gt 0 ]]; do
       output_file="$2"
       shift 2
       ;;
+    --phase)
+      [[ "$#" -ge 2 ]] || fail "--phase requires a value."
+      phase="$2"
+      shift 2
+      ;;
     --keep-output)
       keep_output="true"
       shift
@@ -117,26 +123,22 @@ TENANT_NODE="$(require_yaml_value "${tenant_file}" tenant.node)"
 release="$(require_yaml_value "${tenant_file}" components.openbao.release)"
 release_file="$(resolve_release_file "${release}")"
 OPENBAO_IMAGE="$(resolve_release_image "${release_file}")"
-NAMESPACE="$(require_yaml_value "${tenant_file}" openbao.namespace)"
-SERVICE_ACCOUNT_NAME="$(require_yaml_value "${tenant_file}" openbao.serviceAccountName)"
-CONFIGMAP_NAME="$(require_yaml_value "${tenant_file}" openbao.configMapName)"
-STATEFULSET_NAME="$(require_yaml_value "${tenant_file}" openbao.statefulSetName)"
-DATA_VOLUME_NAME="$(require_yaml_value "${tenant_file}" openbao.dataVolumeName)"
+NAMESPACE="$(derive_namespace "${TENANT_NAME}")"
+SERVICE_ACCOUNT_NAME="$(derive_service_account_name)"
+CONFIGMAP_NAME="$(derive_configmap_name)"
+STATEFULSET_NAME="$(derive_statefulset_name)"
+DATA_VOLUME_NAME="$(derive_data_volume_name)"
 STORAGE_CLASS="$(require_yaml_value "${tenant_file}" storage.openbao.class)"
 STORAGE_SIZE="$(require_yaml_value "${tenant_file}" storage.openbao.size)"
 TRANSIT_ADDRESS="$(require_yaml_value "${tenant_file}" openbao.transit.address)"
-TRANSIT_KEY_NAME="$(require_yaml_value "${tenant_file}" openbao.transit.keyName)"
-TRANSIT_MOUNT_PATH="$(require_yaml_value "${tenant_file}" openbao.transit.mountPath)"
-TRANSIT_TLS_SERVER_NAME="$(require_yaml_value "${tenant_file}" openbao.transit.tlsServerName)"
-TRANSIT_CA_BUNDLE_CONFIGMAP_NAME="$(require_yaml_value "${tenant_file}" openbao.transit.caBundleConfigMapName)"
-TRANSIT_CA_BUNDLE_KEY="$(require_yaml_value "${tenant_file}" openbao.transit.caBundleKey)"
-TRANSIT_CA_BUNDLE_PATH="$(require_yaml_value "${tenant_file}" openbao.transit.caBundleMountPath)"
-TRANSIT_TOKEN_SECRET_NAME="$(require_yaml_value "${tenant_file}" openbao.transit.tokenSecretName)"
-TRANSIT_TOKEN_SECRET_KEY="$(require_yaml_value "${tenant_file}" openbao.transit.tokenSecretKey)"
-
-if [[ "${TRANSIT_ADDRESS}" != https://* ]]; then
-  fail "Transit address must use HTTPS: ${TRANSIT_ADDRESS}"
-fi
+TRANSIT_TLS_SERVER_NAME="$(validate_transit_address "${TRANSIT_ADDRESS}")"
+TRANSIT_KEY_NAME="$(optional_yaml_value "${tenant_file}" openbao.transit.keyName "$(derive_transit_key_name "${TENANT_NODE}")")"
+TRANSIT_MOUNT_PATH="$(optional_yaml_value "${tenant_file}" openbao.transit.mountPath "$(derive_transit_mount_path)")"
+TRANSIT_CA_BUNDLE_CONFIGMAP_NAME="$(optional_yaml_value "${tenant_file}" openbao.transit.caBundleConfigMapName "$(derive_transit_ca_bundle_configmap_name)")"
+TRANSIT_CA_BUNDLE_KEY="$(optional_yaml_value "${tenant_file}" openbao.transit.caBundleKey "$(derive_transit_ca_bundle_key)")"
+TRANSIT_CA_BUNDLE_PATH="$(optional_yaml_value "${tenant_file}" openbao.transit.caBundleMountPath "$(derive_transit_ca_bundle_mount_path)")"
+TRANSIT_TOKEN_SECRET_NAME="$(optional_yaml_value "${tenant_file}" openbao.transit.tokenSecretName "$(derive_transit_token_secret_name)")"
+TRANSIT_TOKEN_SECRET_KEY="$(optional_yaml_value "${tenant_file}" openbao.transit.tokenSecretKey "$(derive_transit_token_secret_key)")"
 
 if rendered_config="$(render_openbao_config | sed 's/^/    /')"; then
   OPENBAO_CONFIG="${rendered_config}"
@@ -144,17 +146,42 @@ else
   fail "Could not render OpenBao bootstrap config"
 fi
 
+case "${phase}" in
+  foundation)
+    template_file="${openbao_component_dir}/manifests/foundation.yaml.tpl"
+    ;;
+  statefulset)
+    template_file="${openbao_component_dir}/manifests/bootstrap.yaml.tpl"
+    ;;
+  all)
+    template_file=""
+    ;;
+  *)
+    fail "Unknown phase: ${phase}"
+    ;;
+esac
+
+render_phase() {
+  if [[ "${phase}" = "all" ]]; then
+    replace_vars "${openbao_component_dir}/manifests/foundation.yaml.tpl"
+    echo "---"
+    replace_vars "${openbao_component_dir}/manifests/bootstrap.yaml.tpl"
+  else
+    replace_vars "${template_file}"
+  fi
+}
+
 if [[ -n "${output_file}" ]]; then
-  replace_vars > "${output_file}"
+  render_phase > "${output_file}"
   chmod 0600 "${output_file}"
-  echo "Rendered Tenant OpenBao bootstrap manifest: ${output_file}" >&2
+  echo "Rendered Tenant OpenBao bootstrap manifest (${phase}): ${output_file}" >&2
   echo "No Secret data was rendered." >&2
 elif [[ "${keep_output}" = "true" ]]; then
   output_file="$(mktemp /tmp/tenant-openbao-bootstrap.XXXXXX.yaml)"
-  replace_vars > "${output_file}"
+  render_phase > "${output_file}"
   chmod 0600 "${output_file}"
-  echo "Rendered Tenant OpenBao bootstrap manifest: ${output_file}" >&2
+  echo "Rendered Tenant OpenBao bootstrap manifest (${phase}): ${output_file}" >&2
   echo "No Secret data was rendered." >&2
 else
-  replace_vars
+  render_phase
 fi
