@@ -1,0 +1,21 @@
+component:
+  name: openbao
+  release: 1
+
+runtime:
+  image:
+    repository: quay.io/openbao/openbao
+    version: "2.5.5"
+    digest: "sha256:6150c4a6b62067db6141c8da7a6a6b5763f4f47c315343d0c848b40fecdfd452"
+
+configuration:
+  schemaVersion: 1
+
+implementation:
+  sharedAssets:
+    manifests: ../../manifests
+    config: ../../config
+    scripts: ../../scripts
+    tests: ../../tests
+    runbooks: ../../runbooks
+  compatibilityPolicy: share-by-default-version-on-incompatibility
