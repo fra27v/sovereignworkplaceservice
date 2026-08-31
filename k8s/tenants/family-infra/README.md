@@ -12,6 +12,7 @@ canonical DNS: vault.internal
 recovery shares: 3
 recovery threshold: 2
 Global OpenBao Transit endpoint: https://operator-vault.varrese.com
+Operator artifacts endpoint: https://operator-artifacts.varrese.com
 ```
 
 The authoritative current desired configuration is:
@@ -101,6 +102,58 @@ Operator PKI certificate. Tenant OpenBao must not use an operator-plane
 
 The Transit token is secret material. It must not be committed, printed, or
 stored in `tenant.yaml`.
+
+## Operator Trust Retrieval
+
+The Operator CA bundle used by tenant bootstrap is retrieved through a
+tenant-specific flow:
+
+```text
+tenant.yaml -> fetch-operator-trust.sh -> interactive BasicAuth -> operator-artifacts -> operator-ca-bundle.pem + .sha256 -> checksum/cert validation -> verified public trust material
+```
+
+The endpoint is configured explicitly and separately from the Transit endpoint:
+
+```text
+operatorPlane.artifacts.address: https://operator-artifacts.varrese.com
+```
+
+Run:
+
+```bash
+k8s/tenants/family-infra/scripts/fetch-operator-trust.sh --output-dir <path>
+```
+
+The script reads `tenant.node` and `operatorPlane.artifacts.address` from
+`tenant.yaml`. For `family-infra`, the BasicAuth username is derived as:
+
+```text
+family-infra-01
+```
+
+The BasicAuth credential is requested interactively by `curl`. It must not be
+stored in Git, `tenant.yaml`, shell history, Kubernetes Secret manifests, or
+ConfigMaps.
+
+The script downloads:
+
+```text
+https://operator-artifacts.varrese.com/tenants/family-infra-01/trust/operator-ca-bundle.pem
+https://operator-artifacts.varrese.com/tenants/family-infra-01/trust/operator-ca-bundle.pem.sha256
+```
+
+Files are downloaded to a restrictive temporary directory first. The bundle is
+published only after the SHA256 checksum succeeds and the PEM parses as a CA
+certificate. The CA bundle is public trust material, not a Kubernetes Secret.
+
+Future behavior, not implemented in this phase:
+
+```text
+if Tenant OpenBao is available and contains the operator-artifacts credential:
+  use that credential
+else:
+  prompt interactively
+```
 
 ## Tenant PKI
 

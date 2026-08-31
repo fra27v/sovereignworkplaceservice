@@ -26,6 +26,10 @@ openbao:
   transit:
     address: https://operator-vault.varrese.com
 
+operatorPlane:
+  artifacts:
+    address: https://operator-artifacts.varrese.com
+
 recovery:
   shares: 3
   threshold: 2
