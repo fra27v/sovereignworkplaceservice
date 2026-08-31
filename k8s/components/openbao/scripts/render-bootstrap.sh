@@ -15,9 +15,26 @@ usage() {
 Usage:
   render-bootstrap.sh [--tenant-file <path>] [--phase foundation|statefulset|all] [--output <path>] [--keep-output] [--help]
 
-Renders the Tenant OpenBao bootstrap manifest. The manifest intentionally
-contains no OpenBao Service, Ingress, IngressRoute, Traefik route, or Secret
-data values. By default the output is printed to stdout.
+Renders Tenant OpenBao bootstrap manifests. Render mode does not apply
+resources and does not mutate the cluster. Rendered manifests intentionally
+contain no OpenBao Service, Ingress, IngressRoute, Traefik route, or Secret data
+values. By default output is printed to stdout.
+
+Phases:
+  foundation
+      Render only the bootstrap foundation Namespace.
+
+  statefulset
+      Render only the Tenant OpenBao bootstrap workload:
+        - ServiceAccount
+        - OpenBao bootstrap ConfigMap
+        - StatefulSet
+        - PVC template through volumeClaimTemplate
+
+  all
+      Render foundation + StatefulSet together for review and inspection. This
+      is only a rendering convenience. It does not change the staged
+      reconciliation workflow and is not accepted by reconcile-bootstrap.sh.
 USAGE
 }
 

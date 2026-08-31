@@ -14,12 +14,61 @@ Usage:
   reconcile-bootstrap.sh --phase statefulset --dry-run [--tenant-file <path>]
   reconcile-bootstrap.sh --phase statefulset --apply [--tenant-file <path>]
 
-Renders and reconciles the Tenant OpenBao bootstrap foundation. This script
-never runs bao operator init and never creates a Service, Ingress, IngressRoute,
-Traefik route, TLS certificate, or tenant PKI.
+Renders and reconciles one explicit Tenant OpenBao bootstrap phase. Both
+--phase and exactly one of --dry-run or --apply are mandatory. Calling this
+script without them fails safely.
 
-The statefulset phase must run only after namespace, Operator CA ConfigMap, and
-Transit token Secret prerequisites have been projected and verified.
+Modes:
+  --dry-run
+      Run Kubernetes server-side validation for the selected phase. This does
+      not mutate cluster resources.
+
+  --apply
+      Apply the selected phase to the cluster.
+
+Phases:
+  foundation
+      Creates only the Tenant OpenBao Kubernetes Namespace. It does not deploy
+      OpenBao. Use this first so the Operator CA ConfigMap and Transit token
+      Secret can be projected into the namespace.
+
+      After foundation --apply:
+        1. Project Operator CA ConfigMap.
+        2. Project Transit token Secret.
+        3. Run live Transit preflight.
+        4. Continue with the statefulset phase.
+
+  statefulset
+      Creates the bootstrap workload:
+        - ServiceAccount
+        - OpenBao bootstrap ConfigMap
+        - StatefulSet
+        - Raft PVC through volumeClaimTemplate
+
+      Use this only after foundation and Transit prerequisites are ready.
+      statefulset --apply runs live Transit preflight first. If Transit
+      prerequisites fail, the StatefulSet is not deployed.
+
+There is intentionally no "all" phase for reconciliation. Foundation and
+StatefulSet must be applied separately so Transit prerequisites can be projected
+and verified between them. To review the complete configuration without
+applying it, render it instead:
+
+  render-bootstrap.sh --phase all
+
+Workflow:
+  1. foundation --dry-run
+  2. foundation --apply
+  3. project Operator CA
+  4. project Transit token
+  5. verify Transit preflight
+  6. statefulset --dry-run
+  7. statefulset --apply
+  8. verify READY_FOR_INIT
+  9. STOP before operator init
+
+This script never runs bao operator init and never creates a Service, Ingress,
+IngressRoute, Traefik route, TLS certificate, or tenant PKI.
 USAGE
 }
 

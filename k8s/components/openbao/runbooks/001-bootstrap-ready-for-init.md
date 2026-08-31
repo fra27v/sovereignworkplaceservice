@@ -11,6 +11,23 @@ bao operator init
 This phase does not create tenant PKI, runtime TLS material, a Kubernetes
 Service, Ingress, IngressRoute, or Traefik route.
 
+## Bootstrap Phase Model
+
+Rendering and reconciliation have different phase sets:
+
+| Tool | Phase | Purpose |
+| --- | --- | --- |
+| `render-bootstrap.sh` | `foundation` | Render Namespace only |
+| `render-bootstrap.sh` | `statefulset` | Render bootstrap workload only |
+| `render-bootstrap.sh` | `all` | Render complete bootstrap configuration for inspection |
+| `reconcile-bootstrap.sh` | `foundation` | Apply or validate Namespace phase |
+| `reconcile-bootstrap.sh` | `statefulset` | Apply or validate bootstrap workload phase |
+
+`reconcile-bootstrap.sh` intentionally does not support `--phase all`.
+Foundation and StatefulSet reconciliation are separate so the Operator CA
+ConfigMap and Transit token Secret can be projected and live Transit preflight
+can pass before the StatefulSet is deployed.
+
 ## Preconditions
 
 - Global OpenBao is initialized and unsealed.

@@ -32,6 +32,18 @@ if "${component_dir}/scripts/reconcile-bootstrap.sh" >/dev/null 2>&1; then
   fail "reconcile-bootstrap.sh without mode must fail"
 fi
 
+echo "Checking bootstrap help text."
+reconcile_help="$("${component_dir}/scripts/reconcile-bootstrap.sh" --help)"
+printf '%s\n' "${reconcile_help}" | grep -q 'foundation' || fail "reconcile help must mention foundation"
+printf '%s\n' "${reconcile_help}" | grep -q 'statefulset' || fail "reconcile help must mention statefulset"
+printf '%s\n' "${reconcile_help}" | grep -q 'There is intentionally no "all" phase for reconciliation' || fail "reconcile help must explain no all phase"
+printf '%s\n' "${reconcile_help}" | grep -q 'render-bootstrap.sh --phase all' || fail "reconcile help must point to render --phase all"
+
+render_help="$("${component_dir}/scripts/render-bootstrap.sh" --help)"
+printf '%s\n' "${render_help}" | grep -q 'foundation' || fail "render help must mention foundation"
+printf '%s\n' "${render_help}" | grep -q 'statefulset' || fail "render help must mention statefulset"
+printf '%s\n' "${render_help}" | grep -q 'all' || fail "render help must mention all"
+
 echo "Validating tenant configuration."
 "${component_dir}/scripts/validate-tenant-config.sh" --tenant-file "${tenant_file}" >/dev/null
 

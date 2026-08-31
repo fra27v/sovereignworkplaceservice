@@ -189,6 +189,26 @@ and validated.
 `--dry-run` or `--apply` fails with usage. Running it without `--phase` also
 fails.
 
+## Render And Reconcile Phases
+
+Rendering is for review; reconciliation is for staged cluster validation or
+apply.
+
+`render-bootstrap.sh` supports:
+
+- `foundation`: render Namespace only
+- `statefulset`: render bootstrap workload only
+- `all`: render complete bootstrap configuration for inspection
+
+`reconcile-bootstrap.sh` supports only:
+
+- `foundation`
+- `statefulset`
+
+There is intentionally no reconcile `all` phase. The namespace phase and
+StatefulSet phase must remain separated so Transit prerequisites can be
+projected and verified before OpenBao is deployed.
+
 ## Runtime Target
 
 Runtime mode is a later phase. The target runtime mode will use OpenBao serving
