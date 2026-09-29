@@ -1,3 +1,4 @@
 pki
 /core/traefik/logs
 logs
+/backup
